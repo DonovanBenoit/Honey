@@ -1,44 +1,9 @@
 #include "HTracer.h"
 
 #include "HImGui.h"
+#include "HDirectX.h"
 
-#include <d3d12.h>
-#include <dxgi1_4.h>
-#include <tchar.h>
-
-#ifdef _DEBUG
-#define DX12_ENABLE_DEBUG_LAYER
-#endif
-
-#ifdef DX12_ENABLE_DEBUG_LAYER
-#include <dxgidebug.h>
-#pragma comment(lib, "dxguid.lib")
-#endif
-
-struct FrameContext
-{
-	ID3D12CommandAllocator* CommandAllocator;
-	UINT64 FenceValue;
-};
-
-// Data
-static int const NUM_FRAMES_IN_FLIGHT = 3;
-static FrameContext g_frameContext[NUM_FRAMES_IN_FLIGHT] = {};
-static UINT g_frameIndex = 0;
-
-static int const NUM_BACK_BUFFERS = 3;
-static ID3D12Device* g_pd3dDevice = NULL;
-static ID3D12DescriptorHeap* g_pd3dRtvDescHeap = NULL;
-static ID3D12DescriptorHeap* g_pd3dSrvDescHeap = NULL;
-static ID3D12CommandQueue* g_pd3dCommandQueue = NULL;
-static ID3D12GraphicsCommandList* g_pd3dCommandList = NULL;
-static ID3D12Fence* g_fence = NULL;
-static HANDLE g_fenceEvent = NULL;
-static UINT64 g_fenceLastSignaledValue = 0;
-static IDXGISwapChain3* g_pSwapChain = NULL;
-static HANDLE g_hSwapChainWaitableObject = NULL;
-static ID3D12Resource* g_mainRenderTargetResource[NUM_BACK_BUFFERS] = {};
-static D3D12_CPU_DESCRIPTOR_HANDLE g_mainRenderTargetDescriptor[NUM_BACK_BUFFERS] = {};
+#include <Windows.h>
 
 // Forward declarations of helper functions
 bool CreateDeviceD3D(HWND hWnd);
@@ -46,8 +11,13 @@ void CleanupDeviceD3D();
 void CreateRenderTarget();
 void CleanupRenderTarget();
 void WaitForLastSubmittedFrame();
-FrameContext* WaitForNextFrameResources();
+HFrameContext* WaitForNextFrameResources();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+namespace
+{
+	HDirectXContext DirectXContext{};
+}
 
 // Main code
 int main(int, char**)
@@ -99,12 +69,12 @@ int main(int, char**)
 	// Setup Platform/Renderer backends
 	ImGui_ImplWin32_Init(hwnd);
 	ImGui_ImplDX12_Init(
-		g_pd3dDevice,
-		NUM_FRAMES_IN_FLIGHT,
+		DirectXContext.g_pd3dDevice,
+		HDirectXContext::NUM_FRAMES_IN_FLIGHT,
 		DXGI_FORMAT_R8G8B8A8_UNORM,
-		g_pd3dSrvDescHeap,
-		g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(),
-		g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
+		DirectXContext.g_pd3dSrvDescHeap,
+		DirectXContext.g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(),
+		DirectXContext.g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
 
 	// Our state
 	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
@@ -133,49 +103,49 @@ int main(int, char**)
 		ImGui::NewFrame();
 
 		DXGI_SWAP_CHAIN_DESC SwapChainDeesc;
-		g_pSwapChain->GetDesc(&SwapChainDeesc);
+		DirectXContext.g_pSwapChain->GetDesc(&SwapChainDeesc);
 		HHoney::DrawHoney({ SwapChainDeesc.BufferDesc.Width, SwapChainDeesc.BufferDesc.Height });
 
 		// Rendering
 		ImGui::Render();
 
-		FrameContext* frameCtx = WaitForNextFrameResources();
-		UINT backBufferIdx = g_pSwapChain->GetCurrentBackBufferIndex();
+		HFrameContext* frameCtx = WaitForNextFrameResources();
+		UINT backBufferIdx = DirectXContext.g_pSwapChain->GetCurrentBackBufferIndex();
 		frameCtx->CommandAllocator->Reset();
 
 		D3D12_RESOURCE_BARRIER barrier = {};
 		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		barrier.Transition.pResource = g_mainRenderTargetResource[backBufferIdx];
+		barrier.Transition.pResource = DirectXContext.g_mainRenderTargetResource[backBufferIdx];
 		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		g_pd3dCommandList->Reset(frameCtx->CommandAllocator, NULL);
-		g_pd3dCommandList->ResourceBarrier(1, &barrier);
+		DirectXContext.g_pd3dCommandList->Reset(frameCtx->CommandAllocator, NULL);
+		DirectXContext.g_pd3dCommandList->ResourceBarrier(1, &barrier);
 
 		// Render Dear ImGui graphics
 		const float clear_color_with_alpha[4] = { clear_color.x * clear_color.w,
 												  clear_color.y * clear_color.w,
 												  clear_color.z * clear_color.w,
 												  clear_color.w };
-		g_pd3dCommandList
-			->ClearRenderTargetView(g_mainRenderTargetDescriptor[backBufferIdx], clear_color_with_alpha, 0, NULL);
-		g_pd3dCommandList->OMSetRenderTargets(1, &g_mainRenderTargetDescriptor[backBufferIdx], FALSE, NULL);
-		g_pd3dCommandList->SetDescriptorHeaps(1, &g_pd3dSrvDescHeap);
-		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), g_pd3dCommandList);
+		DirectXContext.g_pd3dCommandList
+			->ClearRenderTargetView(DirectXContext.g_mainRenderTargetDescriptor[backBufferIdx], clear_color_with_alpha, 0, NULL);
+		DirectXContext.g_pd3dCommandList->OMSetRenderTargets(1, &DirectXContext.g_mainRenderTargetDescriptor[backBufferIdx], FALSE, NULL);
+		DirectXContext.g_pd3dCommandList->SetDescriptorHeaps(1, &DirectXContext.g_pd3dSrvDescHeap);
+		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), DirectXContext.g_pd3dCommandList);
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-		g_pd3dCommandList->ResourceBarrier(1, &barrier);
-		g_pd3dCommandList->Close();
+		DirectXContext.g_pd3dCommandList->ResourceBarrier(1, &barrier);
+		DirectXContext.g_pd3dCommandList->Close();
 
-		g_pd3dCommandQueue->ExecuteCommandLists(1, (ID3D12CommandList* const*)&g_pd3dCommandList);
+		DirectXContext.g_pd3dCommandQueue->ExecuteCommandLists(1, (ID3D12CommandList* const*)&DirectXContext.g_pd3dCommandList);
 
-		g_pSwapChain->Present(1, 0); // Present with vsync
+		DirectXContext.g_pSwapChain->Present(1, 0); // Present with vsync
 		// g_pSwapChain->Present(0, 0); // Present without vsync
 
-		UINT64 fenceValue = g_fenceLastSignaledValue + 1;
-		g_pd3dCommandQueue->Signal(g_fence, fenceValue);
-		g_fenceLastSignaledValue = fenceValue;
+		UINT64 fenceValue = DirectXContext.g_fenceLastSignaledValue + 1;
+		DirectXContext.g_pd3dCommandQueue->Signal(DirectXContext.g_fence, fenceValue);
+		DirectXContext.g_fenceLastSignaledValue = fenceValue;
 		frameCtx->FenceValue = fenceValue;
 	}
 
@@ -201,7 +171,7 @@ bool CreateDeviceD3D(HWND hWnd)
 	DXGI_SWAP_CHAIN_DESC1 sd;
 	{
 		ZeroMemory(&sd, sizeof(sd));
-		sd.BufferCount = NUM_BACK_BUFFERS;
+		sd.BufferCount = HDirectXContext::NUM_BACK_BUFFERS;
 		sd.Width = 0;
 		sd.Height = 0;
 		sd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -224,7 +194,7 @@ bool CreateDeviceD3D(HWND hWnd)
 
 	// Create device
 	D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_0;
-	if (D3D12CreateDevice(NULL, featureLevel, IID_PPV_ARGS(&g_pd3dDevice)) != S_OK)
+	if (D3D12CreateDevice(NULL, featureLevel, IID_PPV_ARGS(&DirectXContext.g_pd3dDevice)) != S_OK)
 		return false;
 
 		// [DEBUG] Setup debug interface to break on any warnings/errors
@@ -232,7 +202,7 @@ bool CreateDeviceD3D(HWND hWnd)
 	if (pdx12Debug != NULL)
 	{
 		ID3D12InfoQueue* pInfoQueue = NULL;
-		g_pd3dDevice->QueryInterface(IID_PPV_ARGS(&pInfoQueue));
+		DirectXContext.g_pd3dDevice->QueryInterface(IID_PPV_ARGS(&pInfoQueue));
 		pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
 		pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
 		pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, true);
@@ -244,17 +214,17 @@ bool CreateDeviceD3D(HWND hWnd)
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
 		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-		desc.NumDescriptors = NUM_BACK_BUFFERS;
+		desc.NumDescriptors = HDirectXContext::NUM_BACK_BUFFERS;
 		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 		desc.NodeMask = 1;
-		if (g_pd3dDevice->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&g_pd3dRtvDescHeap)) != S_OK)
+		if (DirectXContext.g_pd3dDevice->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&DirectXContext.g_pd3dRtvDescHeap)) != S_OK)
 			return false;
 
-		SIZE_T rtvDescriptorSize = g_pd3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = g_pd3dRtvDescHeap->GetCPUDescriptorHandleForHeapStart();
-		for (UINT i = 0; i < NUM_BACK_BUFFERS; i++)
+		SIZE_T rtvDescriptorSize = DirectXContext.g_pd3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = DirectXContext.g_pd3dRtvDescHeap->GetCPUDescriptorHandleForHeapStart();
+		for (UINT i = 0; i < HDirectXContext::NUM_BACK_BUFFERS; i++)
 		{
-			g_mainRenderTargetDescriptor[i] = rtvHandle;
+			DirectXContext.g_mainRenderTargetDescriptor[i] = rtvHandle;
 			rtvHandle.ptr += rtvDescriptorSize;
 		}
 	}
@@ -264,7 +234,7 @@ bool CreateDeviceD3D(HWND hWnd)
 		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		desc.NumDescriptors = 1;
 		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-		if (g_pd3dDevice->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&g_pd3dSrvDescHeap)) != S_OK)
+		if (DirectXContext.g_pd3dDevice->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&DirectXContext.g_pd3dSrvDescHeap)) != S_OK)
 			return false;
 	}
 
@@ -273,32 +243,32 @@ bool CreateDeviceD3D(HWND hWnd)
 		desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 		desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 		desc.NodeMask = 1;
-		if (g_pd3dDevice->CreateCommandQueue(&desc, IID_PPV_ARGS(&g_pd3dCommandQueue)) != S_OK)
+		if (DirectXContext.g_pd3dDevice->CreateCommandQueue(&desc, IID_PPV_ARGS(&DirectXContext.g_pd3dCommandQueue)) != S_OK)
 			return false;
 	}
 
-	for (UINT i = 0; i < NUM_FRAMES_IN_FLIGHT; i++)
-		if (g_pd3dDevice->CreateCommandAllocator(
+	for (UINT i = 0; i < HDirectXContext::NUM_FRAMES_IN_FLIGHT; i++)
+		if (DirectXContext.g_pd3dDevice->CreateCommandAllocator(
 				D3D12_COMMAND_LIST_TYPE_DIRECT,
-				IID_PPV_ARGS(&g_frameContext[i].CommandAllocator))
+				IID_PPV_ARGS(&DirectXContext.g_frameContext[i].CommandAllocator))
 			!= S_OK)
 			return false;
 
-	if (g_pd3dDevice->CreateCommandList(
+	if (DirectXContext.g_pd3dDevice->CreateCommandList(
 			0,
 			D3D12_COMMAND_LIST_TYPE_DIRECT,
-			g_frameContext[0].CommandAllocator,
+		DirectXContext.g_frameContext[0].CommandAllocator,
 			NULL,
-			IID_PPV_ARGS(&g_pd3dCommandList))
+			IID_PPV_ARGS(&DirectXContext.g_pd3dCommandList))
 			!= S_OK
-		|| g_pd3dCommandList->Close() != S_OK)
+		|| DirectXContext.g_pd3dCommandList->Close() != S_OK)
 		return false;
 
-	if (g_pd3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&g_fence)) != S_OK)
+	if (DirectXContext.g_pd3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&DirectXContext.g_fence)) != S_OK)
 		return false;
 
-	g_fenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-	if (g_fenceEvent == NULL)
+	DirectXContext.g_fenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	if (DirectXContext.g_fenceEvent == NULL)
 		return false;
 
 	{
@@ -306,14 +276,14 @@ bool CreateDeviceD3D(HWND hWnd)
 		IDXGISwapChain1* swapChain1 = NULL;
 		if (CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory)) != S_OK)
 			return false;
-		if (dxgiFactory->CreateSwapChainForHwnd(g_pd3dCommandQueue, hWnd, &sd, NULL, NULL, &swapChain1) != S_OK)
+		if (dxgiFactory->CreateSwapChainForHwnd(DirectXContext.g_pd3dCommandQueue, hWnd, &sd, NULL, NULL, &swapChain1) != S_OK)
 			return false;
-		if (swapChain1->QueryInterface(IID_PPV_ARGS(&g_pSwapChain)) != S_OK)
+		if (swapChain1->QueryInterface(IID_PPV_ARGS(&DirectXContext.g_pSwapChain)) != S_OK)
 			return false;
 		swapChain1->Release();
 		dxgiFactory->Release();
-		g_pSwapChain->SetMaximumFrameLatency(NUM_BACK_BUFFERS);
-		g_hSwapChainWaitableObject = g_pSwapChain->GetFrameLatencyWaitableObject();
+		DirectXContext.g_pSwapChain->SetMaximumFrameLatency(HDirectXContext::NUM_BACK_BUFFERS);
+		DirectXContext.g_hSwapChainWaitableObject = DirectXContext.g_pSwapChain->GetFrameLatencyWaitableObject();
 	}
 
 	CreateRenderTarget();
@@ -323,56 +293,56 @@ bool CreateDeviceD3D(HWND hWnd)
 void CleanupDeviceD3D()
 {
 	CleanupRenderTarget();
-	if (g_pSwapChain)
+	if (DirectXContext.g_pSwapChain)
 	{
-		g_pSwapChain->SetFullscreenState(false, NULL);
-		g_pSwapChain->Release();
-		g_pSwapChain = NULL;
+		DirectXContext.g_pSwapChain->SetFullscreenState(false, NULL);
+		DirectXContext.g_pSwapChain->Release();
+		DirectXContext.g_pSwapChain = NULL;
 	}
-	if (g_hSwapChainWaitableObject != NULL)
+	if (DirectXContext.g_hSwapChainWaitableObject != NULL)
 	{
-		CloseHandle(g_hSwapChainWaitableObject);
+		CloseHandle(DirectXContext.g_hSwapChainWaitableObject);
 	}
-	for (UINT i = 0; i < NUM_FRAMES_IN_FLIGHT; i++)
-		if (g_frameContext[i].CommandAllocator)
+	for (UINT i = 0; i < HDirectXContext::NUM_FRAMES_IN_FLIGHT; i++)
+		if (DirectXContext.g_frameContext[i].CommandAllocator)
 		{
-			g_frameContext[i].CommandAllocator->Release();
-			g_frameContext[i].CommandAllocator = NULL;
+			DirectXContext.g_frameContext[i].CommandAllocator->Release();
+			DirectXContext.g_frameContext[i].CommandAllocator = NULL;
 		}
-	if (g_pd3dCommandQueue)
+	if (DirectXContext.g_pd3dCommandQueue)
 	{
-		g_pd3dCommandQueue->Release();
-		g_pd3dCommandQueue = NULL;
+		DirectXContext.g_pd3dCommandQueue->Release();
+		DirectXContext.g_pd3dCommandQueue = NULL;
 	}
-	if (g_pd3dCommandList)
+	if (DirectXContext.g_pd3dCommandList)
 	{
-		g_pd3dCommandList->Release();
-		g_pd3dCommandList = NULL;
+		DirectXContext.g_pd3dCommandList->Release();
+		DirectXContext.g_pd3dCommandList = NULL;
 	}
-	if (g_pd3dRtvDescHeap)
+	if (DirectXContext.g_pd3dRtvDescHeap)
 	{
-		g_pd3dRtvDescHeap->Release();
-		g_pd3dRtvDescHeap = NULL;
+		DirectXContext.g_pd3dRtvDescHeap->Release();
+		DirectXContext.g_pd3dRtvDescHeap = NULL;
 	}
-	if (g_pd3dSrvDescHeap)
+	if (DirectXContext.g_pd3dSrvDescHeap)
 	{
-		g_pd3dSrvDescHeap->Release();
-		g_pd3dSrvDescHeap = NULL;
+		DirectXContext.g_pd3dSrvDescHeap->Release();
+		DirectXContext.g_pd3dSrvDescHeap = NULL;
 	}
-	if (g_fence)
+	if (DirectXContext.g_fence)
 	{
-		g_fence->Release();
-		g_fence = NULL;
+		DirectXContext.g_fence->Release();
+		DirectXContext.g_fence = NULL;
 	}
-	if (g_fenceEvent)
+	if (DirectXContext.g_fenceEvent)
 	{
-		CloseHandle(g_fenceEvent);
-		g_fenceEvent = NULL;
+		CloseHandle(DirectXContext.g_fenceEvent);
+		DirectXContext.g_fenceEvent = NULL;
 	}
-	if (g_pd3dDevice)
+	if (DirectXContext.g_pd3dDevice)
 	{
-		g_pd3dDevice->Release();
-		g_pd3dDevice = NULL;
+		DirectXContext.g_pd3dDevice->Release();
+		DirectXContext.g_pd3dDevice = NULL;
 	}
 
 #ifdef DX12_ENABLE_DEBUG_LAYER
@@ -387,12 +357,12 @@ void CleanupDeviceD3D()
 
 void CreateRenderTarget()
 {
-	for (UINT i = 0; i < NUM_BACK_BUFFERS; i++)
+	for (UINT i = 0; i < HDirectXContext::NUM_BACK_BUFFERS; i++)
 	{
 		ID3D12Resource* pBackBuffer = NULL;
-		g_pSwapChain->GetBuffer(i, IID_PPV_ARGS(&pBackBuffer));
-		g_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, g_mainRenderTargetDescriptor[i]);
-		g_mainRenderTargetResource[i] = pBackBuffer;
+		DirectXContext.g_pSwapChain->GetBuffer(i, IID_PPV_ARGS(&pBackBuffer));
+		DirectXContext.g_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, DirectXContext.g_mainRenderTargetDescriptor[i]);
+		DirectXContext.g_mainRenderTargetResource[i] = pBackBuffer;
 	}
 }
 
@@ -400,45 +370,45 @@ void CleanupRenderTarget()
 {
 	WaitForLastSubmittedFrame();
 
-	for (UINT i = 0; i < NUM_BACK_BUFFERS; i++)
-		if (g_mainRenderTargetResource[i])
+	for (UINT i = 0; i < HDirectXContext::NUM_BACK_BUFFERS; i++)
+		if (DirectXContext.g_mainRenderTargetResource[i])
 		{
-			g_mainRenderTargetResource[i]->Release();
-			g_mainRenderTargetResource[i] = NULL;
+			DirectXContext.g_mainRenderTargetResource[i]->Release();
+			DirectXContext.g_mainRenderTargetResource[i] = NULL;
 		}
 }
 
 void WaitForLastSubmittedFrame()
 {
-	FrameContext* frameCtx = &g_frameContext[g_frameIndex % NUM_FRAMES_IN_FLIGHT];
+	HFrameContext* frameCtx = &DirectXContext.g_frameContext[DirectXContext.g_frameIndex % HDirectXContext::NUM_FRAMES_IN_FLIGHT];
 
 	UINT64 fenceValue = frameCtx->FenceValue;
 	if (fenceValue == 0)
 		return; // No fence was signaled
 
 	frameCtx->FenceValue = 0;
-	if (g_fence->GetCompletedValue() >= fenceValue)
+	if (DirectXContext.g_fence->GetCompletedValue() >= fenceValue)
 		return;
 
-	g_fence->SetEventOnCompletion(fenceValue, g_fenceEvent);
-	WaitForSingleObject(g_fenceEvent, INFINITE);
+	DirectXContext.g_fence->SetEventOnCompletion(fenceValue, DirectXContext.g_fenceEvent);
+	WaitForSingleObject(DirectXContext.g_fenceEvent, INFINITE);
 }
 
-FrameContext* WaitForNextFrameResources()
+HFrameContext* WaitForNextFrameResources()
 {
-	UINT nextFrameIndex = g_frameIndex + 1;
-	g_frameIndex = nextFrameIndex;
+	UINT nextFrameIndex = DirectXContext.g_frameIndex + 1;
+	DirectXContext.g_frameIndex = nextFrameIndex;
 
-	HANDLE waitableObjects[] = { g_hSwapChainWaitableObject, NULL };
+	HANDLE waitableObjects[] = { DirectXContext.g_hSwapChainWaitableObject, NULL };
 	DWORD numWaitableObjects = 1;
 
-	FrameContext* frameCtx = &g_frameContext[nextFrameIndex % NUM_FRAMES_IN_FLIGHT];
+	HFrameContext* frameCtx = &DirectXContext.g_frameContext[nextFrameIndex % HDirectXContext::NUM_FRAMES_IN_FLIGHT];
 	UINT64 fenceValue = frameCtx->FenceValue;
 	if (fenceValue != 0) // means no fence was signaled
 	{
 		frameCtx->FenceValue = 0;
-		g_fence->SetEventOnCompletion(fenceValue, g_fenceEvent);
-		waitableObjects[1] = g_fenceEvent;
+		DirectXContext.g_fence->SetEventOnCompletion(fenceValue, DirectXContext.g_fenceEvent);
+		waitableObjects[1] = DirectXContext.g_fenceEvent;
 		numWaitableObjects = 2;
 	}
 
@@ -467,11 +437,11 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	switch (msg)
 	{
 		case WM_SIZE:
-			if (g_pd3dDevice != NULL && wParam != SIZE_MINIMIZED)
+			if (DirectXContext.g_pd3dDevice != NULL && wParam != SIZE_MINIMIZED)
 			{
 				WaitForLastSubmittedFrame();
 				CleanupRenderTarget();
-				HRESULT result = g_pSwapChain->ResizeBuffers(
+				HRESULT result = DirectXContext.g_pSwapChain->ResizeBuffers(
 					0,
 					(UINT)LOWORD(lParam),
 					(UINT)HIWORD(lParam),
