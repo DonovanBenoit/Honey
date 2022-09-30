@@ -4,8 +4,13 @@ set(CMAKE_CXX_STANDARD 20)
 
 set(SOURCE_FILES
 	Honey/main.cpp
+	Honey/HScene.h
+	Honey/HScene.cpp
 	Honey/HTracer.h
-	Honey/HTracer.cpp)
+	Honey/HTracer.cpp
+	Honey/HLessons.h
+	Honey/HLessons.cpp
+	)
 	
 add_executable(Honey ${SOURCE_FILES})
 

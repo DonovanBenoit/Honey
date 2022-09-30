@@ -1,22 +1,15 @@
 #pragma once
 
+#include "HImGui.h"
+#include "HScene.h"
+
 #include <glm/glm.hpp>
 
-struct HCamera
+struct HHoneyContext
 {
-	glm::vec3 Translation{};
-	float FocalLength = 1.0f;
-	int32_t Width = 16;
-	int32_t Height = 16;
 };
 
-struct HSphere
+namespace HHoney
 {
-	glm::vec3 Translation;
-	float Radius;
-};
-
-namespace HTracer
-{
-	void DrawTracer(const glm::vec2& Resolution);
+	void DrawHoney(const glm::vec2& Resolution);
 }

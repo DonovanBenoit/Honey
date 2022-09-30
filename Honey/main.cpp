@@ -1,10 +1,6 @@
 #include "HTracer.h"
 
-#define ImTextureID ImU64
-
-#include "imgui.h"
-#include "imgui_impl_dx12.h"
-#include "imgui_impl_win32.h"
+#include "HImGui.h"
 
 #include <d3d12.h>
 #include <dxgi1_4.h>
@@ -61,14 +57,15 @@ int main(int, char**)
 	WNDCLASSEX wc = { sizeof(WNDCLASSEX),  CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL,
 					  _T("ImGui Example"), NULL };
 	::RegisterClassEx(&wc);
+
 	HWND hwnd = ::CreateWindow(
 		wc.lpszClassName,
 		_T("Dear ImGui DirectX12 Example"),
 		WS_OVERLAPPEDWINDOW,
-		100,
-		100,
-		1280,
-		800,
+		0,
+		0,
+		GetSystemMetrics(SM_CXSCREEN),
+		GetSystemMetrics(SM_CYSCREEN),
 		NULL,
 		NULL,
 		wc.hInstance,
@@ -137,7 +134,7 @@ int main(int, char**)
 
 		DXGI_SWAP_CHAIN_DESC SwapChainDeesc;
 		g_pSwapChain->GetDesc(&SwapChainDeesc);
-		HTracer::DrawTracer({ SwapChainDeesc.BufferDesc.Width, SwapChainDeesc.BufferDesc.Height });
+		HHoney::DrawHoney({ SwapChainDeesc.BufferDesc.Width, SwapChainDeesc.BufferDesc.Height });
 
 		// Rendering
 		ImGui::Render();
