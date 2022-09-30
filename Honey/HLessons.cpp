@@ -4,6 +4,8 @@
 
 #include <HImGui.h>
 
+#include <glm/gtx/rotate_vector.hpp>
+
 namespace
 {
 	using HViewFunctionPtr = void (*)(const glm::vec3& RightDirection, const glm::vec3& DownDirection);
@@ -15,6 +17,7 @@ namespace
 
 	void QuadView(HViewFunctionPtr ViewFunctionPtr)
 	{
+		glm::vec2 CursorPosition = ImGui::GetCursorScreenPos();
 		glm::vec2 ContentRegion = ImGui::GetContentRegionAvail();
 		float LeftWidth = ContentRegion.x / 2.0f;
 		float RightWidth = ContentRegion.x - LeftWidth;
@@ -24,6 +27,12 @@ namespace
 		if (ImGui::BeginChild("Top", { LeftWidth, TopHeight }))
 		{
 			ViewFunctionPtr(Right, Forward);
+		}
+		ImGui::EndChild();
+
+		ImGui::SameLine();
+		if (ImGui::BeginChild("3D", { RightWidth, TopHeight }))
+		{
 		}
 		ImGui::EndChild();
 
@@ -39,6 +48,19 @@ namespace
 			ViewFunctionPtr(Forward, Down);
 		}
 		ImGui::EndChild();
+
+		ImDrawList* DrawList = ImGui::GetWindowDrawList();
+		DrawList->AddRect(CursorPosition, CursorPosition + glm::vec2{ LeftWidth, TopHeight }, 0xFFFFFFFF);
+		DrawList->AddText(CursorPosition, 0xFFFFFFFF, "Top");
+
+		DrawList->AddRect(CursorPosition + glm::vec2{ LeftWidth, 0.0f }, CursorPosition + glm::vec2{ LeftWidth + RightWidth, TopHeight }, 0xFFFFFFFF);
+		DrawList->AddText(CursorPosition + glm::vec2{ LeftWidth, 0.0f }, 0xFFFFFFFF, "3D");
+
+		DrawList->AddRect(CursorPosition + glm::vec2{ 0.0f, TopHeight }, CursorPosition + glm::vec2{ LeftWidth, TopHeight + BottomHeight }, 0xFFFFFFFF);
+		DrawList->AddText(CursorPosition + glm::vec2{ 0.0f, TopHeight }, 0xFFFFFFFF, "Back");
+
+		DrawList->AddRect(CursorPosition + glm::vec2{ LeftWidth, TopHeight }, CursorPosition + glm::vec2{ LeftWidth + RightWidth, TopHeight + BottomHeight }, 0xFFFFFFFF);
+		DrawList->AddText(CursorPosition + glm::vec2{ LeftWidth, TopHeight }, 0xFFFFFFFF, "Right");
 	};
 
 	void DirectionalLightView(const glm::vec3& RightDirection, const glm::vec3& DownDirection)
@@ -51,11 +73,13 @@ namespace
 		glm::vec2 LightDirection{ glm::dot(RightDirection, DirectionalLight.Direction),
 								  glm::dot(DownDirection, DirectionalLight.Direction) };
 
+		glm::vec2 LightPlane = glm::rotate(LightDirection, glm::half_pi<float>());
+
 		float RayCount = 32;
-		glm::vec2 RayPitch{ 24.0f, 0.0f };
+		float RayPitch = 24.0f;
 		for (float Ray = 0; Ray < RayCount; Ray += 1.0f)
 		{
-			glm::vec2 RayStart = CursorPosition + RayPitch * Ray;
+			glm::vec2 RayStart = CursorPosition + LightPlane * (Ray * RayPitch);
 			glm::vec2 RayEnd = RayStart + LightDirection * 1000.0f;
 
 			DrawList->AddLine(RayStart, RayEnd, 0XFFFF4444);
