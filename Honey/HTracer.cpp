@@ -28,7 +28,6 @@ void HTracer::DrawTracer(const glm::vec2& Resolution)
 			ImVec2 CursorPosition = ImGui::GetCursorScreenPos();
 
 			ImDrawList* DrawList = ImGui::GetWindowDrawList();
-			// DrawList->AddRect(CursorPosition, { CursorPosition.x + 100, CursorPosition.y + 100 }, 0xFF00FFFF);
 
 			ImVec2 CameraPosition = { CursorPosition.x + Camera.Translation.x * 100.0f, CursorPosition.y + Camera.Translation.z * 100.0f };
 
