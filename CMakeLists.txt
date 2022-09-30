@@ -3,9 +3,9 @@ project(Hive)
 set(CMAKE_CXX_STANDARD 20)
 
 set(SOURCE_FILES
-	Sources/main.cpp
-	Sources/HTracer.h
-	Sources/HTracer.cpp
+	Honey/main.cpp
+	Honey/HTracer.h
+	Honey/HTracer.cpp
 	Libraries/imgui/imgui.cpp
 	Libraries/imgui/imgui_demo.cpp
 	Libraries/imgui/imgui_draw.cpp
