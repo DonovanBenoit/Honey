@@ -56,15 +56,9 @@ int main(int, char**)
 	// Setup Dear ImGui context
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO();
-	(void)io;
-	// io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable
-	// Keyboard Controls io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; //
-	// Enable Gamepad Controls
 
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
-	// ImGui::StyleColorsLight();
 
 	// Setup Platform/Renderer backends
 	ImGui_ImplWin32_Init(hwnd);
@@ -141,7 +135,6 @@ int main(int, char**)
 		DirectXContext.g_pd3dCommandQueue->ExecuteCommandLists(1, (ID3D12CommandList* const*)&DirectXContext.g_pd3dCommandList);
 
 		DirectXContext.g_pSwapChain->Present(1, 0); // Present with vsync
-		// g_pSwapChain->Present(0, 0); // Present without vsync
 
 		UINT64 fenceValue = DirectXContext.g_fenceLastSignaledValue + 1;
 		DirectXContext.g_pd3dCommandQueue->Signal(DirectXContext.g_fence, fenceValue);
