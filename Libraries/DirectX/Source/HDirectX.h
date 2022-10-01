@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef _WIN32
+
 #include <d3d12.h>
 #include <dxgi1_4.h>
 #include <tchar.h>
@@ -40,3 +42,5 @@ struct HDirectXContext
 	ID3D12Resource* g_mainRenderTargetResource[NUM_BACK_BUFFERS] = {};
 	D3D12_CPU_DESCRIPTOR_HANDLE g_mainRenderTargetDescriptor[NUM_BACK_BUFFERS] = {};
 };
+
+#endif // _WIN32

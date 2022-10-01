@@ -1,7 +1,8 @@
 #include "HTracer.h"
 
 #include "HImGui.h"
-#include "HDirectX.h"
+
+#include <HDirectX.h>
 
 #include <Windows.h>
 

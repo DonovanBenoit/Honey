@@ -115,7 +115,7 @@ namespace
 		ImGui::SameLine();
 		if (ImGui::BeginChild("View", { ViewWidth, ContentRegion.y }))
 		{
-			QuadView(DirectionalLightView);
+			DirectionalLightView(Right, Down);
 		}
 		ImGui::EndChild();
 	}
