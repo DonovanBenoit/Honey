@@ -122,7 +122,7 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 
 	// Command Queue
 	if (!HDirectX::CreateCommandQueue(
-			&GUIWindow.DirectXContext->g_pd3dCommandQueue,
+			&GUIWindow.DirectXContext->CommandQueue,
 			GUIWindow.DirectXContext->g_pd3dDevice))
 	{
 		CleanupDeviceD3D();
@@ -145,7 +145,7 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 
 	// Command List
 	if (!HDirectX::CreateCommandList(
-			&DirectXContext.g_pd3dCommandList,
+			&DirectXContext.CommandList,
 			DirectXContext.g_frameContext[0].CommandAllocator,
 			GUIWindow.DirectXContext->g_pd3dDevice))
 	{
@@ -165,7 +165,7 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	}
 
 	// Swap Chain
-	if (!HDirectX::CreateSwapChain(DirectXContext.SwapChain, GUIWindow.WindowHandle, DirectXContext.g_pd3dCommandQueue, DirectXContext.g_pd3dDevice))
+	if (!HDirectX::CreateSwapChain(DirectXContext.SwapChain, GUIWindow.WindowHandle, DirectXContext.CommandQueue, DirectXContext.g_pd3dDevice))
 	{
 		CleanupDeviceD3D();
 		HImGui::DestroyGUIWindow(GUIWindow);
@@ -237,15 +237,15 @@ void CleanupDeviceD3D()
 			DirectXContext.g_frameContext[i].CommandAllocator->Release();
 			DirectXContext.g_frameContext[i].CommandAllocator = NULL;
 		}
-	if (DirectXContext.g_pd3dCommandQueue)
+	if (DirectXContext.CommandQueue)
 	{
-		DirectXContext.g_pd3dCommandQueue->Release();
-		DirectXContext.g_pd3dCommandQueue = NULL;
+		DirectXContext.CommandQueue->Release();
+		DirectXContext.CommandQueue = NULL;
 	}
-	if (DirectXContext.g_pd3dCommandList)
+	if (DirectXContext.CommandList)
 	{
-		DirectXContext.g_pd3dCommandList->Release();
-		DirectXContext.g_pd3dCommandList = NULL;
+		DirectXContext.CommandList->Release();
+		DirectXContext.CommandList = NULL;
 	}
 	if (DirectXContext.g_pd3dRtvDescHeap)
 	{

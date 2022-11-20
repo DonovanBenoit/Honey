@@ -57,10 +57,13 @@ struct HDirectXContext
 
 	static int const NUM_BACK_BUFFERS = 3;
 	ID3D12Device* g_pd3dDevice = nullptr;
+
 	ID3D12DescriptorHeap* g_pd3dRtvDescHeap = nullptr;
 	ID3D12DescriptorHeap* g_pd3dSrvDescHeap = nullptr;
-	ID3D12CommandQueue* g_pd3dCommandQueue = nullptr;
-	ID3D12GraphicsCommandList* g_pd3dCommandList = nullptr;
+	
+	ID3D12CommandQueue* CommandQueue = nullptr;
+	ID3D12GraphicsCommandList* CommandList = nullptr;
+
 	UINT64 g_fenceLastSignaledValue = 0;
 	ID3D12Resource* g_mainRenderTargetResource[NUM_BACK_BUFFERS] = {};
 	D3D12_CPU_DESCRIPTOR_HANDLE g_mainRenderTargetDescriptor[NUM_BACK_BUFFERS] = {};

@@ -76,26 +76,26 @@ int main(int, char**)
 		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		GUIWindow.DirectXContext->g_pd3dCommandList->Reset(frameCtx->CommandAllocator, NULL);
-		GUIWindow.DirectXContext->g_pd3dCommandList->ResourceBarrier(1, &barrier);
+		GUIWindow.DirectXContext->CommandList->Reset(frameCtx->CommandAllocator, NULL);
+		GUIWindow.DirectXContext->CommandList->ResourceBarrier(1, &barrier);
 
 		// Render Dear ImGui graphics
-		GUIWindow.DirectXContext->g_pd3dCommandList
+		GUIWindow.DirectXContext->CommandList
 			->ClearRenderTargetView(GUIWindow.DirectXContext->g_mainRenderTargetDescriptor[backBufferIdx], reinterpret_cast<float*>(&ClearColor), 0, NULL);
-		GUIWindow.DirectXContext->g_pd3dCommandList->OMSetRenderTargets(1, &GUIWindow.DirectXContext->g_mainRenderTargetDescriptor[backBufferIdx], FALSE, NULL);
-		GUIWindow.DirectXContext->g_pd3dCommandList->SetDescriptorHeaps(1, &GUIWindow.DirectXContext->g_pd3dSrvDescHeap);
-		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), GUIWindow.DirectXContext->g_pd3dCommandList);
+		GUIWindow.DirectXContext->CommandList->OMSetRenderTargets(1, &GUIWindow.DirectXContext->g_mainRenderTargetDescriptor[backBufferIdx], FALSE, NULL);
+		GUIWindow.DirectXContext->CommandList->SetDescriptorHeaps(1, &GUIWindow.DirectXContext->g_pd3dSrvDescHeap);
+		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), GUIWindow.DirectXContext->CommandList);
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-		GUIWindow.DirectXContext->g_pd3dCommandList->ResourceBarrier(1, &barrier);
-		GUIWindow.DirectXContext->g_pd3dCommandList->Close();
+		GUIWindow.DirectXContext->CommandList->ResourceBarrier(1, &barrier);
+		GUIWindow.DirectXContext->CommandList->Close();
 
-		GUIWindow.DirectXContext->g_pd3dCommandQueue->ExecuteCommandLists(1, (ID3D12CommandList* const*)&GUIWindow.DirectXContext->g_pd3dCommandList);
+		GUIWindow.DirectXContext->CommandQueue->ExecuteCommandLists(1, (ID3D12CommandList* const*)&GUIWindow.DirectXContext->CommandList);
 
 		GUIWindow.DirectXContext->SwapChain.SwapChain->Present(1, 0); // Present with vsync
 
 		UINT64 fenceValue = GUIWindow.DirectXContext->g_fenceLastSignaledValue + 1;
-		GUIWindow.DirectXContext->g_pd3dCommandQueue->Signal(GUIWindow.DirectXContext->Fence.Fence, fenceValue);
+		GUIWindow.DirectXContext->CommandQueue->Signal(GUIWindow.DirectXContext->Fence.Fence, fenceValue);
 		GUIWindow.DirectXContext->g_fenceLastSignaledValue = fenceValue;
 		frameCtx->FenceValue = fenceValue;
 	}
