@@ -11,13 +11,23 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 
 // Forward declarations of helper functions
 void CleanupDeviceD3D();
-void CreateRenderTarget();
-void CleanupRenderTarget();
 void WaitForLastSubmittedFrameBackend();
 
 namespace
 {
 	HDirectXContext DirectXContext{};
+
+	HWND MainWindowHandle = 0;
+
+	union HGUIWindowExtra
+	{
+		struct
+		{
+			uint32_t ByteA;
+			uint32_t ByteB;
+		};
+		HGUIWindow* GUIWindow;
+	};
 
 	// Win32 message handler
 	// You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if
@@ -36,18 +46,24 @@ namespace
 		switch (msg)
 		{
 			case WM_SIZE:
-				if (DirectXContext.Device != NULL && wParam != SIZE_MINIMIZED)
+				if (DirectXContext.Device != NULL && wParam != SIZE_MINIMIZED && MainWindowHandle == hWnd)
 				{
 					WaitForLastSubmittedFrameBackend();
-					CleanupRenderTarget();
-					HRESULT result = DirectXContext.SwapChain.SwapChain->ResizeBuffers(
+
+					HGUIWindowExtra GUIWindowExtra;
+					GUIWindowExtra.ByteA = GetWindowLongA(hWnd, 0 * sizeof(uint32_t));
+					GUIWindowExtra.ByteB = GetWindowLongA(hWnd, 1 * sizeof(uint32_t));
+
+					HImGui::DestroyRenderTargets(*GUIWindowExtra.GUIWindow);
+
+					HRESULT result = GUIWindowExtra.GUIWindow->SwapChain.SwapChain->ResizeBuffers(
 						0,
 						(UINT)LOWORD(lParam),
 						(UINT)HIWORD(lParam),
 						DXGI_FORMAT_UNKNOWN,
 						DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT);
 					assert(SUCCEEDED(result) && "Failed to resize swapchain.");
-					CreateRenderTarget();
+					HImGui::CreateRenderTargets(*GUIWindowExtra.GUIWindow);
 				}
 				return 0;
 			case WM_SYSCOMMAND:
@@ -62,17 +78,27 @@ namespace
 	}
 } // namespace
 
-bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
+bool HImGui::CreateGUIWindow(HGUIWindow* GUIWindow)
 {
+
 	// Create application window
 	// ImGui_ImplWin32_EnableDpiAwareness();
-	GUIWindow.WindowClass = { sizeof(WNDCLASSEX),	 CS_CLASSDC, WndProc, 0L,	0L,
-							  GetModuleHandle(NULL), NULL,		 NULL,	  NULL, NULL,
-							  _T("ImGui Example"),	 NULL };
-	::RegisterClassEx(&GUIWindow.WindowClass);
+	GUIWindow->WindowClass.cbSize = sizeof(WNDCLASSEX);
+	GUIWindow->WindowClass.style = CS_CLASSDC;
+	GUIWindow->WindowClass.lpfnWndProc = WndProc;
+	GUIWindow->WindowClass.cbClsExtra = 0;
+	GUIWindow->WindowClass.cbWndExtra = sizeof(HGUIWindowExtra);
+	GUIWindow->WindowClass.hInstance = GetModuleHandle(NULL);
+	GUIWindow->WindowClass.hIcon = NULL;
+	GUIWindow->WindowClass.hCursor = NULL;
+	GUIWindow->WindowClass.hbrBackground = NULL;
+	GUIWindow->WindowClass.lpszMenuName = NULL;
+	GUIWindow->WindowClass.lpszClassName = _T("Honey");
+	GUIWindow->WindowClass.hIconSm = NULL;
+	::RegisterClassEx(&GUIWindow->WindowClass);
 
-	GUIWindow.WindowHandle = ::CreateWindow(
-		GUIWindow.WindowClass.lpszClassName,
+	GUIWindow->WindowHandle = CreateWindow(
+		GUIWindow->WindowClass.lpszClassName,
 		_T("Dear ImGui DirectX12 Example"),
 		WS_OVERLAPPEDWINDOW,
 		0,
@@ -81,52 +107,53 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 		GetSystemMetrics(SM_CYSCREEN),
 		NULL,
 		NULL,
-		GUIWindow.WindowClass.hInstance,
+		GUIWindow->WindowClass.hInstance,
 		NULL);
 
-	GUIWindow.DirectXContext = &DirectXContext;
+	HGUIWindowExtra GUIWindowExtra;
+	GUIWindowExtra.GUIWindow = GUIWindow;
+	SetWindowLongA(GUIWindow->WindowHandle, 0 * sizeof(uint32_t), GUIWindowExtra.ByteA);
+	SetWindowLongA(GUIWindow->WindowHandle, 1 * sizeof(uint32_t), GUIWindowExtra.ByteB);
+	MainWindowHandle = GUIWindow->WindowHandle;
+
+	GUIWindow->DirectXContext = &DirectXContext;
 
 	// Initialize Direct3D
-	if (!HDirectX::CreateDeviceD3D(&GUIWindow.DirectXContext->Device, GUIWindow.WindowHandle))
+	if (!HDirectX::CreateDeviceD3D(&GUIWindow->DirectXContext->Device, GUIWindow->WindowHandle))
 	{
-		CleanupDeviceD3D();
-		HImGui::DestroyGUIWindow(GUIWindow);
+		HImGui::DestroyGUIWindow(*GUIWindow);
 		return false;
 	}
 
 	// RTV
-	if (!HDirectX::CreateRTVHeap(&GUIWindow.DirectXContext->RTV_DescHeap, GUIWindow.DirectXContext->Device))
+	if (!HDirectX::CreateRTVHeap(
+			&GUIWindow->DirectXContext->RTV_DescHeap,
+			GUIWindow->DirectXContext->Device,
+			HGUIWindow::NUM_BACK_BUFFERS))
 	{
-		CleanupDeviceD3D();
-		HImGui::DestroyGUIWindow(GUIWindow);
+		HImGui::DestroyGUIWindow(*GUIWindow);
 		return false;
 	}
 	SIZE_T rtvDescriptorSize =
-		GUIWindow.DirectXContext->Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+		GUIWindow->DirectXContext->Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = DirectXContext.RTV_DescHeap->GetCPUDescriptorHandleForHeapStart();
-	for (UINT i = 0; i < HDirectXContext::NUM_BACK_BUFFERS; i++)
+	for (UINT i = 0; i < HGUIWindow::NUM_BACK_BUFFERS; i++)
 	{
-		DirectXContext.RenderTargetDescriptor[i] = rtvHandle;
+		GUIWindow->RenderTargetDescriptor[i] = rtvHandle;
 		rtvHandle.ptr += rtvDescriptorSize;
 	}
 
 	// CBVSRVUAV
-	if (!HDirectX::CreateCBVSRVUAVHeap(
-			&GUIWindow.DirectXContext->g_pd3dSrvDescHeap,
-			GUIWindow.DirectXContext->Device))
+	if (!HDirectX::CreateCBVSRVUAVHeap(&GUIWindow->DirectXContext->CBVSRVUAV_DescHeap, GUIWindow->DirectXContext->Device))
 	{
-		CleanupDeviceD3D();
-		HImGui::DestroyGUIWindow(GUIWindow);
+		HImGui::DestroyGUIWindow(*GUIWindow);
 		return false;
 	}
 
 	// Command Queue
-	if (!HDirectX::CreateCommandQueue(
-			&GUIWindow.DirectXContext->CommandQueue,
-			GUIWindow.DirectXContext->Device))
+	if (!HDirectX::CreateCommandQueue(&GUIWindow->DirectXContext->CommandQueue, GUIWindow->DirectXContext->Device))
 	{
-		CleanupDeviceD3D();
-		HImGui::DestroyGUIWindow(GUIWindow);
+		HImGui::DestroyGUIWindow(*GUIWindow);
 		return false;
 	}
 
@@ -135,10 +162,9 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	{
 		if (!HDirectX::CreateCommandAllocator(
 				&DirectXContext.FrameContext[i].CommandAllocator,
-				GUIWindow.DirectXContext->Device))
+				GUIWindow->DirectXContext->Device))
 		{
-			CleanupDeviceD3D();
-			HImGui::DestroyGUIWindow(GUIWindow);
+			HImGui::DestroyGUIWindow(*GUIWindow);
 			return false;
 		}
 	}
@@ -147,42 +173,57 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	if (!HDirectX::CreateCommandList(
 			&DirectXContext.CommandList,
 			DirectXContext.FrameContext[0].CommandAllocator,
-			GUIWindow.DirectXContext->Device))
+			GUIWindow->DirectXContext->Device))
 	{
-		CleanupDeviceD3D();
-		HImGui::DestroyGUIWindow(GUIWindow);
+		HImGui::DestroyGUIWindow(*GUIWindow);
 		return false;
 	}
 
 	// Fence
-	if (!HDirectX::CreateFence(
-		DirectXContext.Fence,
-		GUIWindow.DirectXContext->Device))
+	if (!HDirectX::CreateFence(DirectXContext.Fence, GUIWindow->DirectXContext->Device))
 	{
-		CleanupDeviceD3D();
-		HImGui::DestroyGUIWindow(GUIWindow);
+		HImGui::DestroyGUIWindow(*GUIWindow);
 		return false;
 	}
 
 	// Swap Chain
-	if (!HDirectX::CreateSwapChain(DirectXContext.SwapChain, GUIWindow.WindowHandle, DirectXContext.CommandQueue, DirectXContext.Device))
+	if (!HDirectX::CreateSwapChain(
+			GUIWindow->SwapChain,
+			GUIWindow->WindowHandle,
+			HGUIWindow::NUM_BACK_BUFFERS,
+			DirectXContext.CommandQueue,
+			DirectXContext.Device))
 	{
-		CleanupDeviceD3D();
-		HImGui::DestroyGUIWindow(GUIWindow);
+		HImGui::DestroyGUIWindow(*GUIWindow);
 		return false;
 	}
 
-	CreateRenderTarget();
+	CreateRenderTargets(*GUIWindow);
 
 	// Show the window
-	ShowWindow(GUIWindow.WindowHandle, SW_SHOWDEFAULT);
-	UpdateWindow(GUIWindow.WindowHandle);
+	ShowWindow(GUIWindow->WindowHandle, SW_SHOWDEFAULT);
+	UpdateWindow(GUIWindow->WindowHandle);
 
 	return true;
 }
 
 void HImGui::DestroyGUIWindow(HGUIWindow& GUIWindow)
 {
+	WaitForLastSubmittedFrameBackend();
+
+	HImGui::DestroyRenderTargets(GUIWindow);
+
+	if (GUIWindow.SwapChain.SwapChain != nullptr)
+	{
+		GUIWindow.SwapChain.SwapChain->SetFullscreenState(false, NULL);
+		GUIWindow.SwapChain.SwapChain->Release();
+		GUIWindow.SwapChain.SwapChain = NULL;
+	}
+	if (GUIWindow.SwapChain.SwapChainWaitableObject != nullptr)
+	{
+		CloseHandle(GUIWindow.SwapChain.SwapChainWaitableObject);
+	}
+
 	CleanupDeviceD3D();
 	::DestroyWindow(GUIWindow.WindowHandle);
 	::UnregisterClass(GUIWindow.WindowClass.lpszClassName, GUIWindow.WindowClass.hInstance);
@@ -193,7 +234,7 @@ HFrameContext* HImGui::WaitForNextFrameResources(HGUIWindow& GUIWindow)
 	UINT nextFrameIndex = DirectXContext.FrameIndex + 1;
 	DirectXContext.FrameIndex = nextFrameIndex;
 
-	HANDLE waitableObjects[] = { DirectXContext.SwapChain.SwapChainWaitableObject, NULL };
+	HANDLE waitableObjects[] = { GUIWindow.SwapChain.SwapChainWaitableObject, NULL };
 	DWORD numWaitableObjects = 1;
 
 	HFrameContext* frameCtx = &DirectXContext.FrameContext[nextFrameIndex % HDirectXContext::NUM_FRAMES_IN_FLIGHT];
@@ -220,23 +261,15 @@ void HImGui::WaitForLastSubmittedFrame()
 
 void CleanupDeviceD3D()
 {
-	CleanupRenderTarget();
-	if (DirectXContext.SwapChain.SwapChain != nullptr)
-	{
-		DirectXContext.SwapChain.SwapChain->SetFullscreenState(false, NULL);
-		DirectXContext.SwapChain.SwapChain->Release();
-		DirectXContext.SwapChain.SwapChain = NULL;
-	}
-	if (DirectXContext.SwapChain.SwapChainWaitableObject != nullptr)
-	{
-		CloseHandle(DirectXContext.SwapChain.SwapChainWaitableObject);
-	}
 	for (UINT i = 0; i < HDirectXContext::NUM_FRAMES_IN_FLIGHT; i++)
+	{
 		if (DirectXContext.FrameContext[i].CommandAllocator)
 		{
 			DirectXContext.FrameContext[i].CommandAllocator->Release();
 			DirectXContext.FrameContext[i].CommandAllocator = NULL;
 		}
+	}
+
 	if (DirectXContext.CommandQueue)
 	{
 		DirectXContext.CommandQueue->Release();
@@ -252,12 +285,12 @@ void CleanupDeviceD3D()
 		DirectXContext.RTV_DescHeap->Release();
 		DirectXContext.RTV_DescHeap = NULL;
 	}
-	if (DirectXContext.g_pd3dSrvDescHeap)
+	if (DirectXContext.CBVSRVUAV_DescHeap)
 	{
-		DirectXContext.g_pd3dSrvDescHeap->Release();
-		DirectXContext.g_pd3dSrvDescHeap = NULL;
+		DirectXContext.CBVSRVUAV_DescHeap->Release();
+		DirectXContext.CBVSRVUAV_DescHeap = NULL;
 	}
-	
+
 	DirectXContext.Fence.Release();
 
 	if (DirectXContext.Device)
@@ -276,30 +309,28 @@ void CleanupDeviceD3D()
 #endif
 }
 
-void CreateRenderTarget()
+void HImGui::CreateRenderTargets(HGUIWindow& GUIWindow)
 {
-	for (UINT i = 0; i < HDirectXContext::NUM_BACK_BUFFERS; i++)
+	for (UINT i = 0; i < HGUIWindow::NUM_BACK_BUFFERS; i++)
 	{
 		ID3D12Resource* pBackBuffer = NULL;
-		DirectXContext.SwapChain.SwapChain->GetBuffer(i, IID_PPV_ARGS(&pBackBuffer));
-		DirectXContext.Device->CreateRenderTargetView(
-			pBackBuffer,
-			NULL,
-			DirectXContext.RenderTargetDescriptor[i]);
-		DirectXContext.RenderTargetResource[i] = pBackBuffer;
+		GUIWindow.SwapChain.SwapChain->GetBuffer(i, IID_PPV_ARGS(&pBackBuffer));
+		DirectXContext.Device->CreateRenderTargetView(pBackBuffer, NULL, GUIWindow.RenderTargetDescriptor[i]);
+		GUIWindow.RenderTargetResource[i] = pBackBuffer;
 	}
 }
 
-void CleanupRenderTarget()
-{
-	WaitForLastSubmittedFrameBackend();
 
-	for (UINT i = 0; i < HDirectXContext::NUM_BACK_BUFFERS; i++)
-		if (DirectXContext.RenderTargetResource[i])
+void HImGui::DestroyRenderTargets(HGUIWindow& GUIWindow)
+{
+	for (UINT i = 0; i < HGUIWindow::NUM_BACK_BUFFERS; i++)
+	{
+		if (GUIWindow.RenderTargetResource[i])
 		{
-			DirectXContext.RenderTargetResource[i]->Release();
-			DirectXContext.RenderTargetResource[i] = NULL;
+			GUIWindow.RenderTargetResource[i]->Release();
+			GUIWindow.RenderTargetResource[i] = nullptr;
 		}
+	}
 }
 
 void WaitForLastSubmittedFrameBackend()

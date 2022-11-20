@@ -55,18 +55,13 @@ struct HDirectXContext
 	HFrameContext FrameContext[NUM_FRAMES_IN_FLIGHT] = {};
 	UINT FrameIndex = 0;
 
-	static int32_t const NUM_BACK_BUFFERS = 3;
 	ID3D12Device* Device = nullptr;
 
 	ID3D12DescriptorHeap* RTV_DescHeap = nullptr;
-	ID3D12DescriptorHeap* g_pd3dSrvDescHeap = nullptr;
+	ID3D12DescriptorHeap* CBVSRVUAV_DescHeap = nullptr;
 	
 	ID3D12CommandQueue* CommandQueue = nullptr;
 	ID3D12GraphicsCommandList* CommandList = nullptr;
-
-	ID3D12Resource* RenderTargetResource[NUM_BACK_BUFFERS] = {};
-	D3D12_CPU_DESCRIPTOR_HANDLE RenderTargetDescriptor[NUM_BACK_BUFFERS] = {};
-	HSwapChain SwapChain{};
 
 	UINT64 g_fenceLastSignaledValue = 0;
 	HFence Fence{};
@@ -78,13 +73,13 @@ struct HDirectXContext
 namespace HDirectX
 {
 	bool CreateDeviceD3D(ID3D12Device** Device, HWND HWND);
-	bool CreateRTVHeap(ID3D12DescriptorHeap** RTVDescHeap, ID3D12Device* Device);
+	bool CreateRTVHeap(ID3D12DescriptorHeap** RTVDescHeap, ID3D12Device* Device, uint32_t DescriptorCount);
 	bool CreateCBVSRVUAVHeap(ID3D12DescriptorHeap** CBVSRVUAVDescHeap, ID3D12Device* Device);
 	bool CreateCommandQueue(ID3D12CommandQueue** CommandQueue, ID3D12Device* Device);
 	bool CreateCommandAllocator(ID3D12CommandAllocator** CommandAllocator, ID3D12Device* Device);
 	bool CreateCommandList(ID3D12GraphicsCommandList** CommandList, ID3D12CommandAllocator* CommandAllocator, ID3D12Device* Device);
 	bool CreateFence(HFence& Fence, ID3D12Device* Device);
-	bool CreateSwapChain(HSwapChain& SwapChain, HWND HWND, ID3D12CommandQueue* CommandQueue, ID3D12Device* Device);
+	bool CreateSwapChain(HSwapChain& SwapChain, HWND HWND, uint32_t BufferCount, ID3D12CommandQueue* CommandQueue, ID3D12Device* Device);
 };
 
 #endif // _WIN32

@@ -33,12 +33,12 @@ bool HDirectX::CreateDeviceD3D(ID3D12Device** Device, HWND HWND)
 	return true;
 }
 
-bool HDirectX::CreateRTVHeap(ID3D12DescriptorHeap** RTVDescHeap, ID3D12Device* Device)
+bool HDirectX::CreateRTVHeap(ID3D12DescriptorHeap** RTVDescHeap, ID3D12Device* Device, uint32_t DescriptorCount)
 {
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
 		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-		desc.NumDescriptors = HDirectXContext::NUM_BACK_BUFFERS;
+		desc.NumDescriptors = DescriptorCount;
 		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 		desc.NodeMask = 1;
 		if (Device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(RTVDescHeap)) != S_OK)
@@ -117,13 +117,13 @@ bool HDirectX::CreateFence(HFence& Fence, ID3D12Device* Device)
 	return true;
 }
 
-bool HDirectX::CreateSwapChain(HSwapChain& SwapChain, HWND HWND, ID3D12CommandQueue* CommandQueue, ID3D12Device* Device)
+bool HDirectX::CreateSwapChain(HSwapChain& SwapChain, HWND HWND, uint32_t BufferCount, ID3D12CommandQueue* CommandQueue, ID3D12Device* Device)
 {
 	// Setup swap chain
 	DXGI_SWAP_CHAIN_DESC1 SwapChainDesc;
 	{
 		ZeroMemory(&SwapChainDesc, sizeof(SwapChainDesc));
-		SwapChainDesc.BufferCount = HDirectXContext::NUM_BACK_BUFFERS;
+		SwapChainDesc.BufferCount = BufferCount;
 		SwapChainDesc.Width = 0;
 		SwapChainDesc.Height = 0;
 		SwapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -149,7 +149,7 @@ bool HDirectX::CreateSwapChain(HSwapChain& SwapChain, HWND HWND, ID3D12CommandQu
 			return false;
 		swapChain1->Release();
 		dxgiFactory->Release();
-		SwapChain.SwapChain->SetMaximumFrameLatency(HDirectXContext::NUM_BACK_BUFFERS);
+		SwapChain.SwapChain->SetMaximumFrameLatency(BufferCount);
 		SwapChain.SwapChainWaitableObject = SwapChain.SwapChain->GetFrameLatencyWaitableObject();
 	}
 

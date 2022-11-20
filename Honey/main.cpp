@@ -13,7 +13,7 @@ int main(int, char**)
 {
 	HGUIWindow GUIWindow{};
 
-	HImGui::CreateGUIWindow(GUIWindow);
+	HImGui::CreateGUIWindow(&GUIWindow);
 
 	// Setup Dear ImGui context
 	IMGUI_CHECKVERSION();
@@ -28,9 +28,9 @@ int main(int, char**)
 		GUIWindow.DirectXContext->Device,
 		HDirectXContext::NUM_FRAMES_IN_FLIGHT,
 		DXGI_FORMAT_R8G8B8A8_UNORM,
-		GUIWindow.DirectXContext->g_pd3dSrvDescHeap,
-		GUIWindow.DirectXContext->g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(),
-		GUIWindow.DirectXContext->g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
+		GUIWindow.DirectXContext->CBVSRVUAV_DescHeap,
+		GUIWindow.DirectXContext->CBVSRVUAV_DescHeap->GetCPUDescriptorHandleForHeapStart(),
+		GUIWindow.DirectXContext->CBVSRVUAV_DescHeap->GetGPUDescriptorHandleForHeapStart());
 
 	// Our state
 	ImVec4 ClearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
@@ -59,20 +59,20 @@ int main(int, char**)
 		ImGui::NewFrame();
 
 		DXGI_SWAP_CHAIN_DESC SwapChainDeesc;
-		GUIWindow.DirectXContext->SwapChain.SwapChain->GetDesc(&SwapChainDeesc);
+		GUIWindow.SwapChain.SwapChain->GetDesc(&SwapChainDeesc);
 		HHoney::DrawHoney({ SwapChainDeesc.BufferDesc.Width, SwapChainDeesc.BufferDesc.Height });
 
 		// Rendering
 		ImGui::Render();
 
 		HFrameContext* frameCtx = HImGui::WaitForNextFrameResources(GUIWindow);
-		UINT backBufferIdx = GUIWindow.DirectXContext->SwapChain.SwapChain->GetCurrentBackBufferIndex();
+		UINT backBufferIdx = GUIWindow.SwapChain.SwapChain->GetCurrentBackBufferIndex();
 		frameCtx->CommandAllocator->Reset();
 
 		D3D12_RESOURCE_BARRIER barrier = {};
 		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		barrier.Transition.pResource = GUIWindow.DirectXContext->RenderTargetResource[backBufferIdx];
+		barrier.Transition.pResource = GUIWindow.RenderTargetResource[backBufferIdx];
 		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -81,9 +81,9 @@ int main(int, char**)
 
 		// Render Dear ImGui graphics
 		GUIWindow.DirectXContext->CommandList
-			->ClearRenderTargetView(GUIWindow.DirectXContext->RenderTargetDescriptor[backBufferIdx], reinterpret_cast<float*>(&ClearColor), 0, NULL);
-		GUIWindow.DirectXContext->CommandList->OMSetRenderTargets(1, &GUIWindow.DirectXContext->RenderTargetDescriptor[backBufferIdx], FALSE, NULL);
-		GUIWindow.DirectXContext->CommandList->SetDescriptorHeaps(1, &GUIWindow.DirectXContext->g_pd3dSrvDescHeap);
+			->ClearRenderTargetView(GUIWindow.RenderTargetDescriptor[backBufferIdx], reinterpret_cast<float*>(&ClearColor), 0, NULL);
+		GUIWindow.DirectXContext->CommandList->OMSetRenderTargets(1, &GUIWindow.RenderTargetDescriptor[backBufferIdx], FALSE, NULL);
+		GUIWindow.DirectXContext->CommandList->SetDescriptorHeaps(1, &GUIWindow.DirectXContext->CBVSRVUAV_DescHeap);
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), GUIWindow.DirectXContext->CommandList);
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
@@ -92,7 +92,7 @@ int main(int, char**)
 
 		GUIWindow.DirectXContext->CommandQueue->ExecuteCommandLists(1, (ID3D12CommandList* const*)&GUIWindow.DirectXContext->CommandList);
 
-		GUIWindow.DirectXContext->SwapChain.SwapChain->Present(1, 0); // Present with vsync
+		GUIWindow.SwapChain.SwapChain->Present(1, 0); // Present with vsync
 
 		UINT64 fenceValue = GUIWindow.DirectXContext->g_fenceLastSignaledValue + 1;
 		GUIWindow.DirectXContext->CommandQueue->Signal(GUIWindow.DirectXContext->Fence.Fence, fenceValue);
