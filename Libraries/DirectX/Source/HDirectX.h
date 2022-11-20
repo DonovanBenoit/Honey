@@ -51,14 +51,14 @@ struct HSwapChain
 struct HDirectXContext
 {
 	// Data
-	static int const NUM_FRAMES_IN_FLIGHT = 3;
-	HFrameContext g_frameContext[NUM_FRAMES_IN_FLIGHT] = {};
-	UINT g_frameIndex = 0;
+	static int32_t const NUM_FRAMES_IN_FLIGHT = 3;
+	HFrameContext FrameContext[NUM_FRAMES_IN_FLIGHT] = {};
+	UINT FrameIndex = 0;
 
-	static int const NUM_BACK_BUFFERS = 3;
-	ID3D12Device* g_pd3dDevice = nullptr;
+	static int32_t const NUM_BACK_BUFFERS = 3;
+	ID3D12Device* Device = nullptr;
 
-	ID3D12DescriptorHeap* g_pd3dRtvDescHeap = nullptr;
+	ID3D12DescriptorHeap* RTV_DescHeap = nullptr;
 	ID3D12DescriptorHeap* g_pd3dSrvDescHeap = nullptr;
 	
 	ID3D12CommandQueue* CommandQueue = nullptr;

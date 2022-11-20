@@ -25,7 +25,7 @@ int main(int, char**)
 	// Setup Platform/Renderer backends
 	ImGui_ImplWin32_Init(GUIWindow.WindowHandle);
 	ImGui_ImplDX12_Init(
-		GUIWindow.DirectXContext->g_pd3dDevice,
+		GUIWindow.DirectXContext->Device,
 		HDirectXContext::NUM_FRAMES_IN_FLIGHT,
 		DXGI_FORMAT_R8G8B8A8_UNORM,
 		GUIWindow.DirectXContext->g_pd3dSrvDescHeap,

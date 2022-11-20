@@ -36,7 +36,7 @@ namespace
 		switch (msg)
 		{
 			case WM_SIZE:
-				if (DirectXContext.g_pd3dDevice != NULL && wParam != SIZE_MINIMIZED)
+				if (DirectXContext.Device != NULL && wParam != SIZE_MINIMIZED)
 				{
 					WaitForLastSubmittedFrameBackend();
 					CleanupRenderTarget();
@@ -87,7 +87,7 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	GUIWindow.DirectXContext = &DirectXContext;
 
 	// Initialize Direct3D
-	if (!HDirectX::CreateDeviceD3D(&GUIWindow.DirectXContext->g_pd3dDevice, GUIWindow.WindowHandle))
+	if (!HDirectX::CreateDeviceD3D(&GUIWindow.DirectXContext->Device, GUIWindow.WindowHandle))
 	{
 		CleanupDeviceD3D();
 		HImGui::DestroyGUIWindow(GUIWindow);
@@ -95,15 +95,15 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	}
 
 	// RTV
-	if (!HDirectX::CreateRTVHeap(&GUIWindow.DirectXContext->g_pd3dRtvDescHeap, GUIWindow.DirectXContext->g_pd3dDevice))
+	if (!HDirectX::CreateRTVHeap(&GUIWindow.DirectXContext->RTV_DescHeap, GUIWindow.DirectXContext->Device))
 	{
 		CleanupDeviceD3D();
 		HImGui::DestroyGUIWindow(GUIWindow);
 		return false;
 	}
 	SIZE_T rtvDescriptorSize =
-		GUIWindow.DirectXContext->g_pd3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = DirectXContext.g_pd3dRtvDescHeap->GetCPUDescriptorHandleForHeapStart();
+		GUIWindow.DirectXContext->Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = DirectXContext.RTV_DescHeap->GetCPUDescriptorHandleForHeapStart();
 	for (UINT i = 0; i < HDirectXContext::NUM_BACK_BUFFERS; i++)
 	{
 		DirectXContext.g_mainRenderTargetDescriptor[i] = rtvHandle;
@@ -113,7 +113,7 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	// CBVSRVUAV
 	if (!HDirectX::CreateCBVSRVUAVHeap(
 			&GUIWindow.DirectXContext->g_pd3dSrvDescHeap,
-			GUIWindow.DirectXContext->g_pd3dDevice))
+			GUIWindow.DirectXContext->Device))
 	{
 		CleanupDeviceD3D();
 		HImGui::DestroyGUIWindow(GUIWindow);
@@ -123,7 +123,7 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	// Command Queue
 	if (!HDirectX::CreateCommandQueue(
 			&GUIWindow.DirectXContext->CommandQueue,
-			GUIWindow.DirectXContext->g_pd3dDevice))
+			GUIWindow.DirectXContext->Device))
 	{
 		CleanupDeviceD3D();
 		HImGui::DestroyGUIWindow(GUIWindow);
@@ -134,8 +134,8 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	for (UINT i = 0; i < HDirectXContext::NUM_FRAMES_IN_FLIGHT; i++)
 	{
 		if (!HDirectX::CreateCommandAllocator(
-				&DirectXContext.g_frameContext[i].CommandAllocator,
-				GUIWindow.DirectXContext->g_pd3dDevice))
+				&DirectXContext.FrameContext[i].CommandAllocator,
+				GUIWindow.DirectXContext->Device))
 		{
 			CleanupDeviceD3D();
 			HImGui::DestroyGUIWindow(GUIWindow);
@@ -146,8 +146,8 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	// Command List
 	if (!HDirectX::CreateCommandList(
 			&DirectXContext.CommandList,
-			DirectXContext.g_frameContext[0].CommandAllocator,
-			GUIWindow.DirectXContext->g_pd3dDevice))
+			DirectXContext.FrameContext[0].CommandAllocator,
+			GUIWindow.DirectXContext->Device))
 	{
 		CleanupDeviceD3D();
 		HImGui::DestroyGUIWindow(GUIWindow);
@@ -157,7 +157,7 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	// Fence
 	if (!HDirectX::CreateFence(
 		DirectXContext.Fence,
-		GUIWindow.DirectXContext->g_pd3dDevice))
+		GUIWindow.DirectXContext->Device))
 	{
 		CleanupDeviceD3D();
 		HImGui::DestroyGUIWindow(GUIWindow);
@@ -165,7 +165,7 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	}
 
 	// Swap Chain
-	if (!HDirectX::CreateSwapChain(DirectXContext.SwapChain, GUIWindow.WindowHandle, DirectXContext.CommandQueue, DirectXContext.g_pd3dDevice))
+	if (!HDirectX::CreateSwapChain(DirectXContext.SwapChain, GUIWindow.WindowHandle, DirectXContext.CommandQueue, DirectXContext.Device))
 	{
 		CleanupDeviceD3D();
 		HImGui::DestroyGUIWindow(GUIWindow);
@@ -190,13 +190,13 @@ void HImGui::DestroyGUIWindow(HGUIWindow& GUIWindow)
 
 HFrameContext* HImGui::WaitForNextFrameResources(HGUIWindow& GUIWindow)
 {
-	UINT nextFrameIndex = DirectXContext.g_frameIndex + 1;
-	DirectXContext.g_frameIndex = nextFrameIndex;
+	UINT nextFrameIndex = DirectXContext.FrameIndex + 1;
+	DirectXContext.FrameIndex = nextFrameIndex;
 
 	HANDLE waitableObjects[] = { DirectXContext.SwapChain.SwapChainWaitableObject, NULL };
 	DWORD numWaitableObjects = 1;
 
-	HFrameContext* frameCtx = &DirectXContext.g_frameContext[nextFrameIndex % HDirectXContext::NUM_FRAMES_IN_FLIGHT];
+	HFrameContext* frameCtx = &DirectXContext.FrameContext[nextFrameIndex % HDirectXContext::NUM_FRAMES_IN_FLIGHT];
 	UINT64 fenceValue = frameCtx->FenceValue;
 	if (fenceValue != 0) // means no fence was signaled
 	{
@@ -232,10 +232,10 @@ void CleanupDeviceD3D()
 		CloseHandle(DirectXContext.SwapChain.SwapChainWaitableObject);
 	}
 	for (UINT i = 0; i < HDirectXContext::NUM_FRAMES_IN_FLIGHT; i++)
-		if (DirectXContext.g_frameContext[i].CommandAllocator)
+		if (DirectXContext.FrameContext[i].CommandAllocator)
 		{
-			DirectXContext.g_frameContext[i].CommandAllocator->Release();
-			DirectXContext.g_frameContext[i].CommandAllocator = NULL;
+			DirectXContext.FrameContext[i].CommandAllocator->Release();
+			DirectXContext.FrameContext[i].CommandAllocator = NULL;
 		}
 	if (DirectXContext.CommandQueue)
 	{
@@ -247,10 +247,10 @@ void CleanupDeviceD3D()
 		DirectXContext.CommandList->Release();
 		DirectXContext.CommandList = NULL;
 	}
-	if (DirectXContext.g_pd3dRtvDescHeap)
+	if (DirectXContext.RTV_DescHeap)
 	{
-		DirectXContext.g_pd3dRtvDescHeap->Release();
-		DirectXContext.g_pd3dRtvDescHeap = NULL;
+		DirectXContext.RTV_DescHeap->Release();
+		DirectXContext.RTV_DescHeap = NULL;
 	}
 	if (DirectXContext.g_pd3dSrvDescHeap)
 	{
@@ -260,10 +260,10 @@ void CleanupDeviceD3D()
 	
 	DirectXContext.Fence.Release();
 
-	if (DirectXContext.g_pd3dDevice)
+	if (DirectXContext.Device)
 	{
-		DirectXContext.g_pd3dDevice->Release();
-		DirectXContext.g_pd3dDevice = NULL;
+		DirectXContext.Device->Release();
+		DirectXContext.Device = NULL;
 	}
 
 #ifdef DX12_ENABLE_DEBUG_LAYER
@@ -282,7 +282,7 @@ void CreateRenderTarget()
 	{
 		ID3D12Resource* pBackBuffer = NULL;
 		DirectXContext.SwapChain.SwapChain->GetBuffer(i, IID_PPV_ARGS(&pBackBuffer));
-		DirectXContext.g_pd3dDevice->CreateRenderTargetView(
+		DirectXContext.Device->CreateRenderTargetView(
 			pBackBuffer,
 			NULL,
 			DirectXContext.g_mainRenderTargetDescriptor[i]);
@@ -305,7 +305,7 @@ void CleanupRenderTarget()
 void WaitForLastSubmittedFrameBackend()
 {
 	HFrameContext* frameCtx =
-		&DirectXContext.g_frameContext[DirectXContext.g_frameIndex % HDirectXContext::NUM_FRAMES_IN_FLIGHT];
+		&DirectXContext.FrameContext[DirectXContext.FrameIndex % HDirectXContext::NUM_FRAMES_IN_FLIGHT];
 
 	UINT64 fenceValue = frameCtx->FenceValue;
 	if (fenceValue == 0)
