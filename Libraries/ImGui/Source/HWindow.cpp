@@ -201,8 +201,8 @@ HFrameContext* HImGui::WaitForNextFrameResources(HGUIWindow& GUIWindow)
 	if (fenceValue != 0) // means no fence was signaled
 	{
 		frameCtx->FenceValue = 0;
-		DirectXContext.Fence.g_fence->SetEventOnCompletion(fenceValue, DirectXContext.Fence.g_fenceEvent);
-		waitableObjects[1] = DirectXContext.Fence.g_fenceEvent;
+		DirectXContext.Fence.Fence->SetEventOnCompletion(fenceValue, DirectXContext.Fence.FenceEvent);
+		waitableObjects[1] = DirectXContext.Fence.FenceEvent;
 		numWaitableObjects = 2;
 	}
 
@@ -257,16 +257,9 @@ void CleanupDeviceD3D()
 		DirectXContext.g_pd3dSrvDescHeap->Release();
 		DirectXContext.g_pd3dSrvDescHeap = NULL;
 	}
-	if (DirectXContext.Fence.g_fence)
-	{
-		DirectXContext.Fence.g_fence->Release();
-		DirectXContext.Fence.g_fence = NULL;
-	}
-	if (DirectXContext.Fence.g_fenceEvent)
-	{
-		CloseHandle(DirectXContext.Fence.g_fenceEvent);
-		DirectXContext.Fence.g_fenceEvent = NULL;
-	}
+	
+	DirectXContext.Fence.Release();
+
 	if (DirectXContext.g_pd3dDevice)
 	{
 		DirectXContext.g_pd3dDevice->Release();
@@ -319,9 +312,9 @@ void WaitForLastSubmittedFrameBackend()
 		return; // No fence was signaled
 
 	frameCtx->FenceValue = 0;
-	if (DirectXContext.Fence.g_fence->GetCompletedValue() >= fenceValue)
+	if (DirectXContext.Fence.Fence->GetCompletedValue() >= fenceValue)
 		return;
 
-	DirectXContext.Fence.g_fence->SetEventOnCompletion(fenceValue, DirectXContext.Fence.g_fenceEvent);
-	WaitForSingleObject(DirectXContext.Fence.g_fenceEvent, INFINITE);
+	DirectXContext.Fence.Fence->SetEventOnCompletion(fenceValue, DirectXContext.Fence.FenceEvent);
+	WaitForSingleObject(DirectXContext.Fence.FenceEvent, INFINITE);
 }

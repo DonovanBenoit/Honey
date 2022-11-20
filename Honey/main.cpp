@@ -33,7 +33,7 @@ int main(int, char**)
 		GUIWindow.DirectXContext->g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
 
 	// Our state
-	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+	ImVec4 ClearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 	// Main loop
 	bool done = false;
@@ -80,12 +80,8 @@ int main(int, char**)
 		GUIWindow.DirectXContext->g_pd3dCommandList->ResourceBarrier(1, &barrier);
 
 		// Render Dear ImGui graphics
-		const float clear_color_with_alpha[4] = { clear_color.x * clear_color.w,
-												  clear_color.y * clear_color.w,
-												  clear_color.z * clear_color.w,
-												  clear_color.w };
 		GUIWindow.DirectXContext->g_pd3dCommandList
-			->ClearRenderTargetView(GUIWindow.DirectXContext->g_mainRenderTargetDescriptor[backBufferIdx], clear_color_with_alpha, 0, NULL);
+			->ClearRenderTargetView(GUIWindow.DirectXContext->g_mainRenderTargetDescriptor[backBufferIdx], reinterpret_cast<float*>(&ClearColor), 0, NULL);
 		GUIWindow.DirectXContext->g_pd3dCommandList->OMSetRenderTargets(1, &GUIWindow.DirectXContext->g_mainRenderTargetDescriptor[backBufferIdx], FALSE, NULL);
 		GUIWindow.DirectXContext->g_pd3dCommandList->SetDescriptorHeaps(1, &GUIWindow.DirectXContext->g_pd3dSrvDescHeap);
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), GUIWindow.DirectXContext->g_pd3dCommandList);
@@ -99,7 +95,7 @@ int main(int, char**)
 		GUIWindow.DirectXContext->SwapChain.SwapChain->Present(1, 0); // Present with vsync
 
 		UINT64 fenceValue = GUIWindow.DirectXContext->g_fenceLastSignaledValue + 1;
-		GUIWindow.DirectXContext->g_pd3dCommandQueue->Signal(GUIWindow.DirectXContext->Fence.g_fence, fenceValue);
+		GUIWindow.DirectXContext->g_pd3dCommandQueue->Signal(GUIWindow.DirectXContext->Fence.Fence, fenceValue);
 		GUIWindow.DirectXContext->g_fenceLastSignaledValue = fenceValue;
 		frameCtx->FenceValue = fenceValue;
 	}

@@ -103,13 +103,13 @@ bool HDirectX::CreateCommandList(
 
 bool HDirectX::CreateFence(HFence& Fence, ID3D12Device* Device)
 {
-	if (Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&Fence.g_fence)) != S_OK)
+	if (Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&Fence.Fence)) != S_OK)
 	{
 		return false;
 	}
 
-	Fence.g_fenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-	if (Fence.g_fenceEvent == NULL)
+	Fence.FenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	if (Fence.FenceEvent == NULL)
 	{
 		return false;
 	}
@@ -120,21 +120,21 @@ bool HDirectX::CreateFence(HFence& Fence, ID3D12Device* Device)
 bool HDirectX::CreateSwapChain(HSwapChain& SwapChain, HWND HWND, ID3D12CommandQueue* CommandQueue, ID3D12Device* Device)
 {
 	// Setup swap chain
-	DXGI_SWAP_CHAIN_DESC1 sd;
+	DXGI_SWAP_CHAIN_DESC1 SwapChainDesc;
 	{
-		ZeroMemory(&sd, sizeof(sd));
-		sd.BufferCount = HDirectXContext::NUM_BACK_BUFFERS;
-		sd.Width = 0;
-		sd.Height = 0;
-		sd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		sd.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
-		sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-		sd.SampleDesc.Count = 1;
-		sd.SampleDesc.Quality = 0;
-		sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-		sd.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-		sd.Scaling = DXGI_SCALING_STRETCH;
-		sd.Stereo = FALSE;
+		ZeroMemory(&SwapChainDesc, sizeof(SwapChainDesc));
+		SwapChainDesc.BufferCount = HDirectXContext::NUM_BACK_BUFFERS;
+		SwapChainDesc.Width = 0;
+		SwapChainDesc.Height = 0;
+		SwapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		SwapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+		SwapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+		SwapChainDesc.SampleDesc.Count = 1;
+		SwapChainDesc.SampleDesc.Quality = 0;
+		SwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+		SwapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+		SwapChainDesc.Scaling = DXGI_SCALING_STRETCH;
+		SwapChainDesc.Stereo = FALSE;
 	}
 
 	{
@@ -142,7 +142,7 @@ bool HDirectX::CreateSwapChain(HSwapChain& SwapChain, HWND HWND, ID3D12CommandQu
 		IDXGISwapChain1* swapChain1 = NULL;
 		if (CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory)) != S_OK)
 			return false;
-		if (dxgiFactory->CreateSwapChainForHwnd(CommandQueue, HWND, &sd, NULL, NULL, &swapChain1)
+		if (dxgiFactory->CreateSwapChainForHwnd(CommandQueue, HWND, &SwapChainDesc, NULL, NULL, &swapChain1)
 			!= S_OK)
 			return false;
 		if (swapChain1->QueryInterface(IID_PPV_ARGS(&SwapChain.SwapChain)) != S_OK)

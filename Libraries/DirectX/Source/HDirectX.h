@@ -24,8 +24,22 @@ struct HFrameContext
 
 struct HFence
 {
-	ID3D12Fence* g_fence = nullptr;
-	HANDLE g_fenceEvent = nullptr;
+	ID3D12Fence* Fence = nullptr;
+	HANDLE FenceEvent = nullptr;
+
+	void Release()
+	{
+		if (Fence != nullptr)
+		{
+			Fence->Release();
+			Fence = nullptr;
+		}
+		if (FenceEvent != nullptr)
+		{
+			CloseHandle(FenceEvent);
+			FenceEvent = nullptr;
+		}
+	}
 };
 
 struct HSwapChain
