@@ -26,4 +26,6 @@ endif()
 
 target_link_libraries(Honey PRIVATE ImGui)
 target_link_libraries(Honey PRIVATE glm)
-target_link_libraries(Honey PRIVATE DirectX)
+if (MSVC)
+	target_link_libraries(Honey PRIVATE DirectX)
+endif()

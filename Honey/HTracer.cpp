@@ -19,6 +19,18 @@ namespace
 		{
 			ImGui::SliderFloat("Focal Length", &Camera.FocalLength, 0.01f, 4.0f);
 			ImGui::SliderFloat3("Position", &Camera.Translation.x, -10.0f, 10.0f);
+
+			float PannelHeight = ImGui::GetStyle().FramePadding.y * 2.0f + ImGui::GetFrameHeightWithSpacing() * 4.0f + ImGui::GetTextLineHeightWithSpacing();
+			if (ImGui::BeginChild("SubPannel", { 0.0f, PannelHeight }))
+			{
+				ImGui::Text("Text");
+				ImGui::Button("A");
+				ImGui::Button("B");
+				ImGui::Button("C");
+				ImGui::Button("D");
+				ImGui::Button("E");
+			}
+			ImGui::EndChild();
 		}
 		ImGui::EndChild();
 
