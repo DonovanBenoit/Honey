@@ -106,7 +106,7 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = DirectXContext.RTV_DescHeap->GetCPUDescriptorHandleForHeapStart();
 	for (UINT i = 0; i < HDirectXContext::NUM_BACK_BUFFERS; i++)
 	{
-		DirectXContext.g_mainRenderTargetDescriptor[i] = rtvHandle;
+		DirectXContext.RenderTargetDescriptor[i] = rtvHandle;
 		rtvHandle.ptr += rtvDescriptorSize;
 	}
 
@@ -285,8 +285,8 @@ void CreateRenderTarget()
 		DirectXContext.Device->CreateRenderTargetView(
 			pBackBuffer,
 			NULL,
-			DirectXContext.g_mainRenderTargetDescriptor[i]);
-		DirectXContext.g_mainRenderTargetResource[i] = pBackBuffer;
+			DirectXContext.RenderTargetDescriptor[i]);
+		DirectXContext.RenderTargetResource[i] = pBackBuffer;
 	}
 }
 
@@ -295,10 +295,10 @@ void CleanupRenderTarget()
 	WaitForLastSubmittedFrameBackend();
 
 	for (UINT i = 0; i < HDirectXContext::NUM_BACK_BUFFERS; i++)
-		if (DirectXContext.g_mainRenderTargetResource[i])
+		if (DirectXContext.RenderTargetResource[i])
 		{
-			DirectXContext.g_mainRenderTargetResource[i]->Release();
-			DirectXContext.g_mainRenderTargetResource[i] = NULL;
+			DirectXContext.RenderTargetResource[i]->Release();
+			DirectXContext.RenderTargetResource[i] = NULL;
 		}
 }
 

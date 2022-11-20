@@ -72,7 +72,7 @@ int main(int, char**)
 		D3D12_RESOURCE_BARRIER barrier = {};
 		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		barrier.Transition.pResource = GUIWindow.DirectXContext->g_mainRenderTargetResource[backBufferIdx];
+		barrier.Transition.pResource = GUIWindow.DirectXContext->RenderTargetResource[backBufferIdx];
 		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -81,8 +81,8 @@ int main(int, char**)
 
 		// Render Dear ImGui graphics
 		GUIWindow.DirectXContext->CommandList
-			->ClearRenderTargetView(GUIWindow.DirectXContext->g_mainRenderTargetDescriptor[backBufferIdx], reinterpret_cast<float*>(&ClearColor), 0, NULL);
-		GUIWindow.DirectXContext->CommandList->OMSetRenderTargets(1, &GUIWindow.DirectXContext->g_mainRenderTargetDescriptor[backBufferIdx], FALSE, NULL);
+			->ClearRenderTargetView(GUIWindow.DirectXContext->RenderTargetDescriptor[backBufferIdx], reinterpret_cast<float*>(&ClearColor), 0, NULL);
+		GUIWindow.DirectXContext->CommandList->OMSetRenderTargets(1, &GUIWindow.DirectXContext->RenderTargetDescriptor[backBufferIdx], FALSE, NULL);
 		GUIWindow.DirectXContext->CommandList->SetDescriptorHeaps(1, &GUIWindow.DirectXContext->g_pd3dSrvDescHeap);
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), GUIWindow.DirectXContext->CommandList);
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;

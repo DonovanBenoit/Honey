@@ -64,10 +64,11 @@ struct HDirectXContext
 	ID3D12CommandQueue* CommandQueue = nullptr;
 	ID3D12GraphicsCommandList* CommandList = nullptr;
 
-	UINT64 g_fenceLastSignaledValue = 0;
-	ID3D12Resource* g_mainRenderTargetResource[NUM_BACK_BUFFERS] = {};
-	D3D12_CPU_DESCRIPTOR_HANDLE g_mainRenderTargetDescriptor[NUM_BACK_BUFFERS] = {};
+	ID3D12Resource* RenderTargetResource[NUM_BACK_BUFFERS] = {};
+	D3D12_CPU_DESCRIPTOR_HANDLE RenderTargetDescriptor[NUM_BACK_BUFFERS] = {};
 	HSwapChain SwapChain{};
+
+	UINT64 g_fenceLastSignaledValue = 0;
 	HFence Fence{};
 
 	static const uint64_t MaxImageCount = 1024;
