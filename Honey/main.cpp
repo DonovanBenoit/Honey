@@ -12,8 +12,7 @@
 int main(int, char**)
 {
 	HGUIWindow GUIWindow{};
-
-	HImGui::CreateGUIWindow(&GUIWindow);
+	HImGui::CreateGUIWindow(GUIWindow);
 
 	// Setup Dear ImGui context
 	IMGUI_CHECKVERSION();
@@ -28,16 +27,40 @@ int main(int, char**)
 		GUIWindow.DirectXContext->Device,
 		HDirectXContext::NUM_FRAMES_IN_FLIGHT,
 		DXGI_FORMAT_R8G8B8A8_UNORM,
-		GUIWindow.DirectXContext->CBVSRVUAV_DescHeap,
-		GUIWindow.DirectXContext->CBVSRVUAV_DescHeap->GetCPUDescriptorHandleForHeapStart(),
-		GUIWindow.DirectXContext->CBVSRVUAV_DescHeap->GetGPUDescriptorHandleForHeapStart());
+		GUIWindow.CBVSRVUAV_DescHeap,
+		GUIWindow.CBVSRVUAV_DescHeap->GetCPUDescriptorHandleForHeapStart(),
+		GUIWindow.CBVSRVUAV_DescHeap->GetGPUDescriptorHandleForHeapStart());
 
 	// Our state
 	ImVec4 ClearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+	int64_t ImageIndex = -1;
+	if (!HImGui::CreateImage(GUIWindow, ImageIndex, 512, 512))
+	{
+		return 1;
+	}
+
+	HGUIImage& Image = GUIWindow.Images[ImageIndex];
+	for (uint64_t Y = 0; Y < Image.Height; Y++)
+	{
+		for (uint64_t X = 0; X < Image.Width; X++)
+		{
+			uint64_t PixelOffset1D = Y * Image.Width + X;
+			Image.RGBA[PixelOffset1D * 4 + 0] = X % 256;
+			Image.RGBA[PixelOffset1D * 4 + 1] = Y % 256;
+			Image.RGBA[PixelOffset1D * 4 + 2] = 0;
+			Image.RGBA[PixelOffset1D * 4 + 3] = 255;
+		}
+	}
+
+	if (!HImGui::UploadImage(GUIWindow, ImageIndex, 512, 512))
+	{
+		return 1;
+	}
+
 	// Main loop
-	bool done = false;
-	while (!done)
+	bool Quit = false;
+	while (!Quit)
 	{
 		// Poll and handle messages (inputs, window resize, etc.)
 		// See the WndProc() function below for our to dispatch events to the Win32
@@ -48,9 +71,9 @@ int main(int, char**)
 			::TranslateMessage(&msg);
 			::DispatchMessage(&msg);
 			if (msg.message == WM_QUIT)
-				done = true;
+				Quit = true;
 		}
-		if (done)
+		if (Quit)
 			break;
 
 		// Start the Dear ImGui frame
@@ -61,6 +84,12 @@ int main(int, char**)
 		DXGI_SWAP_CHAIN_DESC SwapChainDeesc;
 		GUIWindow.SwapChain.SwapChain->GetDesc(&SwapChainDeesc);
 		HHoney::DrawHoney({ SwapChainDeesc.BufferDesc.Width, SwapChainDeesc.BufferDesc.Height });
+
+		if (ImGui::Begin("Render"))
+		{
+			HImGui::DrawImage(GUIWindow, ImageIndex);
+		}
+		ImGui::End();
 
 		// Rendering
 		ImGui::Render();
@@ -83,7 +112,7 @@ int main(int, char**)
 		GUIWindow.DirectXContext->CommandList
 			->ClearRenderTargetView(GUIWindow.RenderTargetDescriptor[backBufferIdx], reinterpret_cast<float*>(&ClearColor), 0, NULL);
 		GUIWindow.DirectXContext->CommandList->OMSetRenderTargets(1, &GUIWindow.RenderTargetDescriptor[backBufferIdx], FALSE, NULL);
-		GUIWindow.DirectXContext->CommandList->SetDescriptorHeaps(1, &GUIWindow.DirectXContext->CBVSRVUAV_DescHeap);
+		GUIWindow.DirectXContext->CommandList->SetDescriptorHeaps(1, &GUIWindow.CBVSRVUAV_DescHeap);
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), GUIWindow.DirectXContext->CommandList);
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
@@ -94,10 +123,10 @@ int main(int, char**)
 
 		GUIWindow.SwapChain.SwapChain->Present(1, 0); // Present with vsync
 
-		UINT64 fenceValue = GUIWindow.DirectXContext->g_fenceLastSignaledValue + 1;
-		GUIWindow.DirectXContext->CommandQueue->Signal(GUIWindow.DirectXContext->Fence.Fence, fenceValue);
-		GUIWindow.DirectXContext->g_fenceLastSignaledValue = fenceValue;
-		frameCtx->FenceValue = fenceValue;
+		if (!HDirectX::SignalFence(GUIWindow.DirectXContext->CommandQueue, GUIWindow.DirectXContext->Fence, frameCtx->FenceValue))
+		{
+			break;
+		}
 	}
 
 	HImGui::WaitForLastSubmittedFrame();

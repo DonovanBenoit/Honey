@@ -13,6 +13,7 @@ target_link_libraries(ImGui PRIVATE glm)
 target_include_directories(ImGui PUBLIC Source)
 target_include_directories(ImGui PUBLIC imgui)
 target_include_directories(ImGui PUBLIC imgui/backends)
+target_include_directories(ImGui PUBLIC ThirdParty/Windows)
 
 if (MSVC)
 	include_directories(ImGui PUBLIC "C:/Program Files (x86)/Windows Kits/10/Include/10.0.19041.0/um")

@@ -16,16 +16,11 @@
 #pragma comment(lib, "dxguid.lib")
 #endif
 
-struct HFrameContext
-{
-	ID3D12CommandAllocator* CommandAllocator = nullptr;
-	UINT64 FenceValue = 0;
-};
-
 struct HFence
 {
 	ID3D12Fence* Fence = nullptr;
 	HANDLE FenceEvent = nullptr;
+	UINT64 LastSignaledValue = 0;
 
 	void Release()
 	{
@@ -40,6 +35,13 @@ struct HFence
 			FenceEvent = nullptr;
 		}
 	}
+};
+
+struct HFrameContext
+{
+	ID3D12CommandAllocator* CommandAllocator = nullptr;
+
+	UINT64 FenceValue = 0;
 };
 
 struct HSwapChain
@@ -57,13 +59,14 @@ struct HDirectXContext
 
 	ID3D12Device* Device = nullptr;
 
-	ID3D12DescriptorHeap* RTV_DescHeap = nullptr;
-	ID3D12DescriptorHeap* CBVSRVUAV_DescHeap = nullptr;
-	
 	ID3D12CommandQueue* CommandQueue = nullptr;
 	ID3D12GraphicsCommandList* CommandList = nullptr;
 
-	UINT64 g_fenceLastSignaledValue = 0;
+	ID3D12CommandQueue* CopyCommandQueue = nullptr;
+	ID3D12GraphicsCommandList* CopyCommandList = nullptr;
+	ID3D12CommandAllocator* CopyCommandAllocator = nullptr;
+	HFence CopyFence{};
+
 	HFence Fence{};
 
 	static const uint64_t MaxImageCount = 1024;
@@ -74,12 +77,26 @@ namespace HDirectX
 {
 	bool CreateDeviceD3D(ID3D12Device** Device, HWND HWND);
 	bool CreateRTVHeap(ID3D12DescriptorHeap** RTVDescHeap, ID3D12Device* Device, uint32_t DescriptorCount);
-	bool CreateCBVSRVUAVHeap(ID3D12DescriptorHeap** CBVSRVUAVDescHeap, ID3D12Device* Device);
-	bool CreateCommandQueue(ID3D12CommandQueue** CommandQueue, ID3D12Device* Device);
-	bool CreateCommandAllocator(ID3D12CommandAllocator** CommandAllocator, ID3D12Device* Device);
-	bool CreateCommandList(ID3D12GraphicsCommandList** CommandList, ID3D12CommandAllocator* CommandAllocator, ID3D12Device* Device);
+	bool CreateCBVSRVUAVHeap(ID3D12DescriptorHeap** CBVSRVUAVDescHeap, ID3D12Device* Device, uint32_t DescriptorCount);
+	bool CreateCommandQueue(ID3D12CommandQueue** CommandQueue, ID3D12Device* Device, D3D12_COMMAND_LIST_TYPE Type);
+	bool CreateCommandAllocator(
+		ID3D12CommandAllocator** CommandAllocator,
+		ID3D12Device* Device,
+		D3D12_COMMAND_LIST_TYPE Type);
+	bool CreateCommandList(
+		ID3D12GraphicsCommandList** CommandList,
+		ID3D12CommandAllocator* CommandAllocator,
+		ID3D12Device* Device,
+		D3D12_COMMAND_LIST_TYPE Type);
 	bool CreateFence(HFence& Fence, ID3D12Device* Device);
-	bool CreateSwapChain(HSwapChain& SwapChain, HWND HWND, uint32_t BufferCount, ID3D12CommandQueue* CommandQueue, ID3D12Device* Device);
-};
+	bool CreateSwapChain(
+		HSwapChain& SwapChain,
+		HWND HWND,
+		uint32_t BufferCount,
+		ID3D12CommandQueue* CommandQueue,
+		ID3D12Device* Device);
+	bool SignalFence(ID3D12CommandQueue* CommandQueue, HFence& Fence, UINT64& FenceValue);
+	void WaitForFence(HFence& Fence, UINT64& FenceValue);
+}; // namespace HDirectX
 
 #endif // _WIN32

@@ -50,11 +50,14 @@ bool HDirectX::CreateRTVHeap(ID3D12DescriptorHeap** RTVDescHeap, ID3D12Device* D
 	}
 }
 
-bool HDirectX::CreateCBVSRVUAVHeap(ID3D12DescriptorHeap** CBVSRVUAVDescHeap, ID3D12Device* Device)
+bool HDirectX::CreateCBVSRVUAVHeap(
+	ID3D12DescriptorHeap** CBVSRVUAVDescHeap,
+	ID3D12Device* Device,
+	uint32_t DescriptorCount)
 {
 	D3D12_DESCRIPTOR_HEAP_DESC desc = {};
 	desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	desc.NumDescriptors = 1;
+	desc.NumDescriptors = DescriptorCount;
 	desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	if (Device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(CBVSRVUAVDescHeap)) != S_OK)
 	{
@@ -64,10 +67,10 @@ bool HDirectX::CreateCBVSRVUAVHeap(ID3D12DescriptorHeap** CBVSRVUAVDescHeap, ID3
 	return true;
 }
 
-bool HDirectX::CreateCommandQueue(ID3D12CommandQueue** CommandQueue, ID3D12Device* Device)
+bool HDirectX::CreateCommandQueue(ID3D12CommandQueue** CommandQueue, ID3D12Device* Device, D3D12_COMMAND_LIST_TYPE Type)
 {
 	D3D12_COMMAND_QUEUE_DESC desc = {};
-	desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+	desc.Type = Type;
 	desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	desc.NodeMask = 1;
 	if (Device->CreateCommandQueue(&desc, IID_PPV_ARGS(CommandQueue)) != S_OK)
@@ -78,9 +81,12 @@ bool HDirectX::CreateCommandQueue(ID3D12CommandQueue** CommandQueue, ID3D12Devic
 	return true;
 }
 
-bool HDirectX::CreateCommandAllocator(ID3D12CommandAllocator** CommandAllocator, ID3D12Device* Device)
+bool HDirectX::CreateCommandAllocator(
+	ID3D12CommandAllocator** CommandAllocator,
+	ID3D12Device* Device,
+	D3D12_COMMAND_LIST_TYPE Type)
 {
-	if (Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(CommandAllocator)) != S_OK)
+	if (Device->CreateCommandAllocator(Type, IID_PPV_ARGS(CommandAllocator)) != S_OK)
 	{
 		return false;
 	}
@@ -90,9 +96,10 @@ bool HDirectX::CreateCommandAllocator(ID3D12CommandAllocator** CommandAllocator,
 bool HDirectX::CreateCommandList(
 	ID3D12GraphicsCommandList** CommandList,
 	ID3D12CommandAllocator* CommandAllocator,
-	ID3D12Device* Device)
+	ID3D12Device* Device,
+	D3D12_COMMAND_LIST_TYPE Type)
 {
-	if (Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, CommandAllocator, NULL, IID_PPV_ARGS(CommandList))
+	if (Device->CreateCommandList(0, Type, CommandAllocator, NULL, IID_PPV_ARGS(CommandList))
 			!= S_OK
 		|| (*CommandList)->Close() != S_OK)
 	{
@@ -117,7 +124,12 @@ bool HDirectX::CreateFence(HFence& Fence, ID3D12Device* Device)
 	return true;
 }
 
-bool HDirectX::CreateSwapChain(HSwapChain& SwapChain, HWND HWND, uint32_t BufferCount, ID3D12CommandQueue* CommandQueue, ID3D12Device* Device)
+bool HDirectX::CreateSwapChain(
+	HSwapChain& SwapChain,
+	HWND HWND,
+	uint32_t BufferCount,
+	ID3D12CommandQueue* CommandQueue,
+	ID3D12Device* Device)
 {
 	// Setup swap chain
 	DXGI_SWAP_CHAIN_DESC1 SwapChainDesc;
@@ -142,8 +154,7 @@ bool HDirectX::CreateSwapChain(HSwapChain& SwapChain, HWND HWND, uint32_t Buffer
 		IDXGISwapChain1* swapChain1 = NULL;
 		if (CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory)) != S_OK)
 			return false;
-		if (dxgiFactory->CreateSwapChainForHwnd(CommandQueue, HWND, &SwapChainDesc, NULL, NULL, &swapChain1)
-			!= S_OK)
+		if (dxgiFactory->CreateSwapChainForHwnd(CommandQueue, HWND, &SwapChainDesc, NULL, NULL, &swapChain1) != S_OK)
 			return false;
 		if (swapChain1->QueryInterface(IID_PPV_ARGS(&SwapChain.SwapChain)) != S_OK)
 			return false;
@@ -154,4 +165,29 @@ bool HDirectX::CreateSwapChain(HSwapChain& SwapChain, HWND HWND, uint32_t Buffer
 	}
 
 	return true;
+}
+
+bool HDirectX::SignalFence(ID3D12CommandQueue* CommandQueue, HFence& Fence, UINT64& FenceValue)
+{
+	FenceValue = Fence.LastSignaledValue + 1;
+	HRESULT Result = CommandQueue->Signal(Fence.Fence, FenceValue);
+	if (FAILED(Result))
+	{
+		FenceValue = 0;
+		return false;
+	}
+	Fence.LastSignaledValue = FenceValue;
+
+	return true;
+}
+
+void HDirectX::WaitForFence(HFence& Fence, UINT64& FenceValue)
+{
+	if (Fence.Fence->GetCompletedValue() >= FenceValue)
+	{
+		return;
+	}
+
+	Fence.Fence->SetEventOnCompletion(FenceValue, Fence.FenceEvent);
+	WaitForSingleObject(Fence.FenceEvent, INFINITE);
 }
