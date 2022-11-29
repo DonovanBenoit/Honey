@@ -1,12 +1,10 @@
-#include "HTracer.h"
-
 #include "HImGui.h"
+#include "HTracer.h"
 #include "HWindow.h"
 
 #include <HDirectX.h>
-
 #include <Windows.h>
-
+#include <glm/gtx/intersect.hpp>
 
 // Main code
 int main(int, char**)
@@ -87,6 +85,48 @@ int main(int, char**)
 
 		if (ImGui::Begin("Render"))
 		{
+			for (uint32_t Y = 0; Y < Image.Height; Y++)
+			{
+				for (uint32_t X = 0; X < Image.Width; X++)
+				{
+					glm::vec3 RayDirection = { (float(X) + 0.5f - float(Image.Width) / 2.0f) / float(Image.Width),
+											   (float(Y) + 0.5f - float(Image.Height) / 2.0f) / float(Image.Height),
+											   1.0f };
+					RayDirection = glm::normalize(RayDirection);
+
+					glm::vec3 IntersectionPoint = {};
+					glm::vec3 IntersectionNormal = {};
+
+					glm::vec3 Color = { 0.36f, 0.69f, 0.96f };
+					if (glm::intersectRaySphere(
+							{},
+							RayDirection,
+							{ 0.0f, 0.0f, 5.0f },
+							1.0f,
+							IntersectionPoint,
+							IntersectionNormal))
+					{
+						float LightDistance = glm::length(IntersectionPoint - glm::vec3{ 1.0f, 0.0f, 3.0f });
+						float LightDot = glm::dot(
+							glm::normalize(glm::vec3{ 1.0f, 3.0f, 0.0f } - IntersectionPoint),
+							IntersectionNormal);
+						Color = glm::max(LightDot, 0.0f) * glm::max(1.0f / (LightDistance * LightDistance), 1.0f)
+								* glm::vec3(0.24f, 0.69f, 0.42f);
+					}
+
+					uint64_t PixelOffset1D = Y * Image.Width + X;
+					Image.RGBA[PixelOffset1D * 4 + 0] = glm::clamp<uint32_t>(Color.r * 256.0f, 0, 255);
+					Image.RGBA[PixelOffset1D * 4 + 1] = glm::clamp<uint32_t>(Color.g * 256.0f, 0, 255);
+					Image.RGBA[PixelOffset1D * 4 + 2] = glm::clamp<uint32_t>(Color.b * 256.0f, 0, 255);
+					Image.RGBA[PixelOffset1D * 4 + 3] = 255;
+				}
+			}
+
+			if (!HImGui::UploadImage(GUIWindow, ImageIndex, Image.Width, Image.Height))
+			{
+				break;
+			}
+
 			HImGui::DrawImage(GUIWindow, ImageIndex);
 		}
 		ImGui::End();
@@ -109,9 +149,13 @@ int main(int, char**)
 		GUIWindow.DirectXContext->CommandList->ResourceBarrier(1, &barrier);
 
 		// Render Dear ImGui graphics
+		GUIWindow.DirectXContext->CommandList->ClearRenderTargetView(
+			GUIWindow.RenderTargetDescriptor[backBufferIdx],
+			reinterpret_cast<float*>(&ClearColor),
+			0,
+			NULL);
 		GUIWindow.DirectXContext->CommandList
-			->ClearRenderTargetView(GUIWindow.RenderTargetDescriptor[backBufferIdx], reinterpret_cast<float*>(&ClearColor), 0, NULL);
-		GUIWindow.DirectXContext->CommandList->OMSetRenderTargets(1, &GUIWindow.RenderTargetDescriptor[backBufferIdx], FALSE, NULL);
+			->OMSetRenderTargets(1, &GUIWindow.RenderTargetDescriptor[backBufferIdx], FALSE, NULL);
 		GUIWindow.DirectXContext->CommandList->SetDescriptorHeaps(1, &GUIWindow.CBVSRVUAV_DescHeap);
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), GUIWindow.DirectXContext->CommandList);
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -119,11 +163,16 @@ int main(int, char**)
 		GUIWindow.DirectXContext->CommandList->ResourceBarrier(1, &barrier);
 		GUIWindow.DirectXContext->CommandList->Close();
 
-		GUIWindow.DirectXContext->CommandQueue->ExecuteCommandLists(1, (ID3D12CommandList* const*)&GUIWindow.DirectXContext->CommandList);
+		GUIWindow.DirectXContext->CommandQueue->ExecuteCommandLists(
+			1,
+			(ID3D12CommandList* const*)&GUIWindow.DirectXContext->CommandList);
 
 		GUIWindow.SwapChain.SwapChain->Present(1, 0); // Present with vsync
 
-		if (!HDirectX::SignalFence(GUIWindow.DirectXContext->CommandQueue, GUIWindow.DirectXContext->Fence, frameCtx->FenceValue))
+		if (!HDirectX::SignalFence(
+				GUIWindow.DirectXContext->CommandQueue,
+				GUIWindow.DirectXContext->Fence,
+				frameCtx->FenceValue))
 		{
 			break;
 		}
