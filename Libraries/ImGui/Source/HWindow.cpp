@@ -392,30 +392,53 @@ void WaitForLastSubmittedFrameBackend()
 	HDirectX::WaitForFence(DirectXContext.Fence, FenceValue);
 }
 
-bool HImGui::CreateImage(HGUIWindow& GUIWindow, int64_t& ImageIndex, uint64_t Width, uint64_t Height)
+bool HImGui::CreateOrUpdateImage(HGUIWindow& GUIWindow, int64_t& ImageIndex, uint64_t Width, uint64_t Height)
 {
-	if (GUIWindow.ImageRecycling.empty())
+	if (ImageIndex < 0)
 	{
-		if (GUIWindow.Images.size() <= GUIWindow.ImageCount)
+		if (GUIWindow.ImageRecycling.empty())
 		{
-			return false;
+			if (GUIWindow.Images.size() <= GUIWindow.ImageCount)
+			{
+				return false;
+			}
+			ImageIndex = GUIWindow.ImageCount;
+			GUIWindow.ImageCount++;
 		}
-		ImageIndex = GUIWindow.ImageCount;
-		GUIWindow.ImageCount++;
-	}
-	else
-	{
-		ImageIndex = GUIWindow.ImageRecycling.back();
-		GUIWindow.ImageRecycling.pop_back();
+		else
+		{
+			ImageIndex = GUIWindow.ImageRecycling.back();
+			GUIWindow.ImageRecycling.pop_back();
+		}
 	}
 
 	HGUIImage& GUIImage = GUIWindow.Images[ImageIndex];
+
+	const bool Resize = GUIImage.Width != Width || GUIImage.Height != Height;
 	GUIImage.Width = Width;
 	GUIImage.Height = Height;
-	size_t GUIImageSize = GUIImage.Width * GUIImage.Height * sizeof(uint32_t);
-	if (GUIImageSize > 0)
+
+	uint64_t GUIImageSize = GUIImage.Width * GUIImage.Height * sizeof(uint32_t);
+	if (GUIImageSize == 0)
 	{
-		GUIImage.Pixels = (uint32_t*)malloc(GUIImageSize);
+		return false;
+	}
+
+	if (Resize)
+	{
+		if (GUIImage.Pixels != nullptr)
+		{
+			uint32_t* NewPixels = (uint32_t*)realloc(GUIImage.Pixels, GUIImageSize);
+			if (NewPixels == nullptr)
+			{
+				free(GUIImage.Pixels);
+			}
+			GUIImage.Pixels = NewPixels;
+		}
+		else
+		{
+			GUIImage.Pixels = (uint32_t*)malloc(GUIImageSize);
+		}
 	}
 
 	return true;
@@ -426,7 +449,7 @@ uint64_t CalculateAlignedSize(uint64_t Size, uint64_t Alignment)
 	return Size + (Alignment - (Size % Alignment)) % Alignment;
 }
 
-bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex, uint64_t Width, uint64_t Height)
+bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex)
 {
 	if (ImageIndex < 0 || ImageIndex >= GUIWindow.ImageCount)
 	{
@@ -447,10 +470,10 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex, uint64_t Wid
 															 1,
 															 1 };
 
-	uint64_t Size = Width * Height * 4;
-	uint64_t AlignedSize = CalculateAlignedSize(Size, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
-
 	HGUIImage& GUIImage = GUIWindow.Images[ImageIndex];
+	uint64_t SourceRowPitch = GUIImage.Width * 4;
+	uint64_t AlignedRowPitch = CalculateAlignedSize(SourceRowPitch, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+
 	if (GUIImage.Resource == nullptr)
 	{
 		{
@@ -459,8 +482,8 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex, uint64_t Wid
 			ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 			ResourceDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 			ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-			ResourceDesc.Width = Width;
-			ResourceDesc.Height = Height;
+			ResourceDesc.Width = GUIImage.Width;
+			ResourceDesc.Height = GUIImage.Height;
 			ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 			ResourceDesc.MipLevels = 1;
 			ResourceDesc.SampleDesc.Count = 1;
@@ -479,7 +502,7 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex, uint64_t Wid
 			D3D12_RESOURCE_DESC ResourceDesc{};
 			ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
 			ResourceDesc.Alignment = 0;
-			ResourceDesc.Width = AlignedSize;
+			ResourceDesc.Width = AlignedRowPitch * GUIImage.Height;
 			ResourceDesc.Height = 1;
 			ResourceDesc.DepthOrArraySize = 1;
 			ResourceDesc.MipLevels = 1;
@@ -497,7 +520,7 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex, uint64_t Wid
 				nullptr,
 				IID_PPV_ARGS(&GUIImage.UploadResource));
 
-			D3D12_RANGE UploadRange{ 0, AlignedSize };
+			D3D12_RANGE UploadRange{ 0, AlignedRowPitch * GUIImage.Height };
 			GUIImage.UploadResource->Map(0, &UploadRange, &GUIImage.UploadData);
 		}
 
@@ -517,7 +540,7 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex, uint64_t Wid
 	else
 	{
 		D3D12_RESOURCE_DESC ResourceDesc = GUIImage.Resource->GetDesc();
-		if (ResourceDesc.Width != Width || ResourceDesc.Height != Height)
+		if (ResourceDesc.Width != GUIImage.Width || ResourceDesc.Height != GUIImage.Height)
 		{
 			{
 				GUIImage.Resource->Release();
@@ -527,8 +550,8 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex, uint64_t Wid
 				ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 				ResourceDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 				ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-				ResourceDesc.Width = Width;
-				ResourceDesc.Height = Height;
+				ResourceDesc.Width = GUIImage.Width;
+				ResourceDesc.Height = GUIImage.Height;
 				ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 				ResourceDesc.MipLevels = 1;
 				ResourceDesc.SampleDesc.Count = 1;
@@ -550,7 +573,7 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex, uint64_t Wid
 				D3D12_RESOURCE_DESC ResourceDesc{};
 				ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 				ResourceDesc.Alignment = 0;
-				ResourceDesc.Width = AlignedSize;
+				ResourceDesc.Width = AlignedRowPitch * GUIImage.Height;
 				ResourceDesc.Height = 1;
 				ResourceDesc.DepthOrArraySize = 1;
 				ResourceDesc.MipLevels = 1;
@@ -568,7 +591,7 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex, uint64_t Wid
 					nullptr,
 					IID_PPV_ARGS(&GUIImage.UploadResource));
 
-				D3D12_RANGE UploadRange{ 0, AlignedSize };
+				D3D12_RANGE UploadRange{ 0, AlignedRowPitch * GUIImage.Height };
 				GUIImage.UploadResource->Map(0, &UploadRange, &GUIImage.UploadData);
 			}
 
@@ -590,7 +613,10 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex, uint64_t Wid
 		}
 	}
 
-	memcpy(GUIImage.UploadData, GUIImage.Pixels, Size);
+	for (uint64_t Row = 0; Row < GUIImage.Height; Row++)
+	{
+		memcpy(GUIImage.UploadBytes + Row * AlignedRowPitch, GUIImage.Bytes + Row * SourceRowPitch, SourceRowPitch);
+	}
 
 	// Upload
 	GUIWindow.DirectXContext->CopyCommandList->Reset(GUIWindow.DirectXContext->CopyCommandAllocator, nullptr);
@@ -602,10 +628,10 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex, uint64_t Wid
 
 	// Get the copy target location
 	D3D12_PLACED_SUBRESOURCE_FOOTPRINT SourceFootprint = {};
-	SourceFootprint.Footprint.Width = static_cast<UINT>(Width);
-	SourceFootprint.Footprint.Height = static_cast<UINT>(Height);
+	SourceFootprint.Footprint.Width = static_cast<UINT>(GUIImage.Width);
+	SourceFootprint.Footprint.Height = static_cast<UINT>(GUIImage.Height);
 	SourceFootprint.Footprint.Depth = 1;
-	SourceFootprint.Footprint.RowPitch = static_cast<UINT>(Width * 4);
+	SourceFootprint.Footprint.RowPitch = AlignedRowPitch;
 	SourceFootprint.Footprint.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 
 	CD3DX12_TEXTURE_COPY_LOCATION CopyDest(GUIImage.Resource, 0);

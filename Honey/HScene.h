@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp>
 
+#include <vector>
+
 struct HCamera
 {
 	glm::vec3 Translation{};
@@ -16,8 +18,16 @@ struct HSphere
 	float Radius;
 };
 
-struct HDirectionalLight
+struct HPointLight
 {
-	glm::vec3 Intensity = glm::vec3(10.0f, 10.0f, 10.0f);
-	glm::vec3 Direction = glm::vec3(0.0f, 1.0f, 0.0f);
+	glm::vec3 SurfaceIntensity = glm::vec3(10.0f, 10.0f, 10.0f);
+	glm::vec3 Position = glm::vec3(0.0f, 1.0f, 0.0f);
+	float Radius = 0.1f;
+};
+
+struct HScene
+{
+	HCamera Camera{};
+	std::vector<HSphere> Spheres{};
+	std::vector<HPointLight> PointLights{};
 };

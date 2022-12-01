@@ -15,13 +15,19 @@ struct HGUIImage
 
 	union
 	{
-		uint32_t* Pixels = nullptr;
-		uint8_t* RGBA;
+		uint8_t* Data = nullptr;
+		uint8_t* Bytes;
+		uint32_t* Pixels;
 	};
 
 	ID3D12Resource* Resource = nullptr;
 	ID3D12Resource* UploadResource = nullptr;
-	void* UploadData = nullptr;
+	
+	union
+	{
+		void* UploadData = nullptr;
+		uint8_t* UploadBytes;
+	};
 	D3D12_CPU_DESCRIPTOR_HANDLE SRV_CPU_DescriptorHandle = {};
 	D3D12_GPU_DESCRIPTOR_HANDLE SRV_GPU_DescriptorHandle = {};
 };
@@ -58,8 +64,8 @@ namespace HImGui
 	HFrameContext* WaitForNextFrameResources(HGUIWindow& GUIWindow);
 	void WaitForLastSubmittedFrame();
 
-	bool CreateImage(HGUIWindow& GUIWindow, int64_t& ImageIndex, uint64_t Width, uint64_t Height);
-	bool UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex, uint64_t Width, uint64_t Height);
+	bool CreateOrUpdateImage(HGUIWindow& GUIWindow, int64_t& ImageIndex, uint64_t Width, uint64_t Height);
+	bool UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex);
 	void DrawImage(HGUIWindow& GUIWindow, int64_t ImageIndex);
 	bool DestroyImage(HGUIWindow& GUIWindow, int64_t ImageIndex);
 }
