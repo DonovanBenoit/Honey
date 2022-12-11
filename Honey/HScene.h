@@ -18,6 +18,11 @@ struct HSphere
 	float Radius;
 };
 
+struct HMaterial
+{
+	glm::vec3 Albedo;
+};
+
 struct HPointLight
 {
 	glm::vec3 SurfaceIntensity = glm::vec3(10.0f, 10.0f, 10.0f);
@@ -31,3 +36,8 @@ struct HScene
 	std::vector<HSphere> Spheres{};
 	std::vector<HPointLight> PointLights{};
 };
+
+namespace HHoney
+{
+	void DefaultScene(HScene& Scene);
+}

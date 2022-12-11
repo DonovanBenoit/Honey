@@ -11,12 +11,7 @@ namespace
 {
 	void DrawControls(HScene& Scene)
 	{
-		glm::vec2 ContentRegion = ImGui::GetContentRegionAvail();
-
-		const float ControlsWidth = ContentRegion.x * 0.25f;
-		const float ViewWidth = ContentRegion.x - ControlsWidth;
-
-		if (ImGui::BeginChild("Controls", { ControlsWidth, ContentRegion.y }))
+		if (ImGui::BeginChild("Controls"))
 		{
 			ImGui::SliderFloat("Focal Length", &Scene.Camera.FocalLength, 0.01f, 4.0f);
 			ImGui::SliderFloat3("Position", &Scene.Camera.Translation.x, -10.0f, 10.0f);
@@ -37,14 +32,16 @@ namespace
 		}
 
 		HGUIImage& Image = GUIWindow.Images[Tracer.ImageIndex];
+		
+		const float AspectRatio = float(Image.Width) / float(Image.Height);
 
 		for (uint32_t Y = 0; Y < Image.Height; Y++)
 		{
 			for (uint32_t X = 0; X < Image.Width; X++)
 			{
 				glm::vec3 RayDirection = { (float(X) + 0.5f - float(Image.Width) / 2.0f) / float(Image.Width),
-										   (float(Y) + 0.5f - float(Image.Height) / 2.0f) / float(Image.Height),
-										   1.0f };
+										   (float(Y) + 0.5f - float(Image.Height) / 2.0f) / float(Image.Height) / AspectRatio,
+										   Scene.Camera.FocalLength };
 				RayDirection = glm::normalize(RayDirection);
 
 				glm::vec3 IntersectionPoint = {};
@@ -52,7 +49,7 @@ namespace
 
 				glm::vec3 Color = { 0.36f, 0.69f, 0.96f };
 				if (glm::intersectRaySphere(
-					{},
+					Scene.Camera.Translation,
 					RayDirection,
 					{ 0.0f, 0.0f, 5.0f },
 					1.0f,
