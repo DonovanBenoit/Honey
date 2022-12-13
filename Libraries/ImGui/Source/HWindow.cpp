@@ -476,6 +476,7 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex)
 
 	if (GUIImage.Resource == nullptr)
 	{
+		// Texture Resource
 		{
 			D3D12_RESOURCE_DESC ResourceDesc{};
 			ResourceDesc.DepthOrArraySize = 1;
@@ -498,24 +499,25 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex)
 				IID_PPV_ARGS(&GUIImage.Resource));
 		}
 
+		// Upload Resource
 		{
-			D3D12_RESOURCE_DESC ResourceDesc{};
-			ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-			ResourceDesc.Alignment = 0;
-			ResourceDesc.Width = AlignedRowPitch * GUIImage.Height;
-			ResourceDesc.Height = 1;
-			ResourceDesc.DepthOrArraySize = 1;
-			ResourceDesc.MipLevels = 1;
-			ResourceDesc.Format = DXGI_FORMAT_UNKNOWN;
-			ResourceDesc.SampleDesc.Count = 1;
-			ResourceDesc.SampleDesc.Quality = 0;
-			ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-			ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+			D3D12_RESOURCE_DESC UploadResourceDesc{};
+			UploadResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+			UploadResourceDesc.Alignment = 0;
+			UploadResourceDesc.Width = AlignedRowPitch * GUIImage.Height;
+			UploadResourceDesc.Height = 1;
+			UploadResourceDesc.DepthOrArraySize = 1;
+			UploadResourceDesc.MipLevels = 1;
+			UploadResourceDesc.Format = DXGI_FORMAT_UNKNOWN;
+			UploadResourceDesc.SampleDesc.Count = 1;
+			UploadResourceDesc.SampleDesc.Quality = 0;
+			UploadResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+			UploadResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
 			Result = GUIWindow.DirectXContext->Device->CreateCommittedResource(
 				&UploadHeapProperties,
 				D3D12_HEAP_FLAG_NONE,
-				&ResourceDesc,
+				&UploadResourceDesc,
 				D3D12_RESOURCE_STATE_GENERIC_READ,
 				nullptr,
 				IID_PPV_ARGS(&GUIImage.UploadResource));
@@ -542,9 +544,13 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex)
 		D3D12_RESOURCE_DESC ResourceDesc = GUIImage.Resource->GetDesc();
 		if (ResourceDesc.Width != GUIImage.Width || ResourceDesc.Height != GUIImage.Height)
 		{
-			{
-				GUIImage.Resource->Release();
 
+			GUIImage.Resource->Release();
+			GUIImage.UploadResource->Unmap(0, nullptr);
+			GUIImage.UploadResource->Release();
+
+			// Texture Resource
+			{
 				D3D12_RESOURCE_DESC ResourceDesc{};
 				ResourceDesc.DepthOrArraySize = 1;
 				ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -566,27 +572,25 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex)
 					IID_PPV_ARGS(&GUIImage.Resource));
 			}
 
+			// Upload Resource
 			{
-				GUIImage.UploadResource->Unmap(0, nullptr);
-				GUIImage.UploadResource->Release();
-
-				D3D12_RESOURCE_DESC ResourceDesc{};
-				ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-				ResourceDesc.Alignment = 0;
-				ResourceDesc.Width = AlignedRowPitch * GUIImage.Height;
-				ResourceDesc.Height = 1;
-				ResourceDesc.DepthOrArraySize = 1;
-				ResourceDesc.MipLevels = 1;
-				ResourceDesc.Format = DXGI_FORMAT_UNKNOWN;
-				ResourceDesc.SampleDesc.Count = 1;
-				ResourceDesc.SampleDesc.Quality = 1;
-				ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-				ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+				D3D12_RESOURCE_DESC UploadResourceDesc{};
+				UploadResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+				UploadResourceDesc.Alignment = 0;
+				UploadResourceDesc.Width = AlignedRowPitch * GUIImage.Height;
+				UploadResourceDesc.Height = 1;
+				UploadResourceDesc.DepthOrArraySize = 1;
+				UploadResourceDesc.MipLevels = 1;
+				UploadResourceDesc.Format = DXGI_FORMAT_UNKNOWN;
+				UploadResourceDesc.SampleDesc.Count = 1;
+				UploadResourceDesc.SampleDesc.Quality = 0;
+				UploadResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+				UploadResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
 				Result = GUIWindow.DirectXContext->Device->CreateCommittedResource(
 					&UploadHeapProperties,
 					D3D12_HEAP_FLAG_NONE,
-					&ResourceDesc,
+					&UploadResourceDesc,
 					D3D12_RESOURCE_STATE_GENERIC_READ,
 					nullptr,
 					IID_PPV_ARGS(&GUIImage.UploadResource));

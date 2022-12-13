@@ -1,11 +1,9 @@
 #pragma once
 
-#include "HImGui.h"
-#include "HScene.h"
-
 #include <glm/glm.hpp>
 
 struct HGUIWindow;
+struct HScene;
 
 struct HTracer
 {

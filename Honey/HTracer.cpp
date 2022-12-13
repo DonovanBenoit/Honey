@@ -1,11 +1,13 @@
 #include "HTracer.h"
 
-#include "HLessons.h"
+#include "HScene.h"
 #include "HWindow.h"
 
-#include <imgui.h>
-
+#include <HImGui.h>
+#include <entt/entt.hpp>
+#include <format>
 #include <glm/gtx/intersect.hpp>
+#include <imgui.h>
 
 namespace
 {
@@ -13,10 +15,106 @@ namespace
 	{
 		if (ImGui::BeginChild("Controls"))
 		{
-			ImGui::SliderFloat("Focal Length", &Scene.Camera.FocalLength, 0.01f, 4.0f);
-			ImGui::SliderFloat3("Position", &Scene.Camera.Translation.x, -10.0f, 10.0f);
+			if (ImGui::TreeNodeEx("Scene", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				for (entt::entity CameraEntity : Scene.Cameras)
+				{
+					if (ImGui::TreeNodeEx(std::format("Camera_{}", (uint32_t)CameraEntity).c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+					{
+						HCamera& Camera = Scene.Get<HCamera>(CameraEntity);
+						HRelativeTransform& RelativeTransform = Scene.Get<HRelativeTransform>(CameraEntity);
+						ImGui::SliderFloat("Focal Length", &Camera.FocalLength, 0.01f, 4.0f);
+						ImGui::SliderDouble3("Translation", &RelativeTransform.Translation.x, -10.0, 10.0);
+						ImGui::TreePop();
+					}
+				}
+
+				for (entt::entity SphereEntity : Scene.Spheres)
+				{
+					if (ImGui::TreeNodeEx(std::format("Sphere_{}", (uint32_t)SphereEntity).c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+					{
+						HSphere& Sphere = Scene.Get<HSphere>(SphereEntity);
+						HRelativeTransform& RelativeTransform = Scene.Get<HRelativeTransform>(SphereEntity);
+						ImGui::SliderFloat("Radius", &Sphere.Radius, 0.01f, 4.0f);
+						ImGui::SliderDouble3("Translation", &RelativeTransform.Translation.x, -10.0, 10.0);
+						ImGui::TreePop();
+					}
+				}
+
+				for (entt::entity PointLightEntity : Scene.PointLights)
+				{
+					if (ImGui::TreeNodeEx(std::format("PointLight_{}", (uint32_t)PointLightEntity).c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+					{
+						HPointLight& PointLight = Scene.Get<HPointLight>(PointLightEntity);
+						HRelativeTransform& RelativeTransform = Scene.Get<HRelativeTransform>(PointLightEntity);
+						ImGui::ColorEdit3("Focal Length", &PointLight.Color.r);
+						ImGui::SliderDouble3("Translation", &RelativeTransform.Translation.x, -10.0, 10.0);
+						ImGui::TreePop();
+					}
+				}
+				ImGui::TreePop();
+			}
 		}
 		ImGui::EndChild();
+	}
+
+	bool TraceRay(
+		HScene& Scene,
+		const glm::vec3& RayOrigin,
+		const glm::vec3& RayDirection,
+		glm::vec3& HitPosition,
+		glm::vec3& HitNormal)
+	{
+		float FarClip = 10000000.0f;
+		float THit = FarClip;
+
+		auto Spheres = Scene.Registry.view<HSphere>();
+		for (entt::entity SphereEntity : Spheres)
+		{
+			HSphere& Sphere = Scene.Get<HSphere>(SphereEntity);
+			HWorldTransform& WorldTransform = Scene.Get<HWorldTransform>(SphereEntity);
+
+			float SphereHit;
+			if (glm::intersectRaySphere(RayOrigin, RayDirection, WorldTransform.Translation, Sphere.Radius, SphereHit))
+			{
+				if (SphereHit < THit)
+				{
+					THit = SphereHit;
+
+					HitPosition = RayOrigin + RayDirection * THit;
+					HitNormal = (HitPosition - WorldTransform.Translation) / Sphere.Radius;
+				}
+			}
+		}
+
+		return THit < FarClip;
+	}
+
+	glm::vec3 Lighting(HScene& Scene, const glm::vec3& WorldPosition, const glm::vec3& WorldNormal)
+	{
+		glm::vec3 Color = {};
+
+		auto PointLightView = Scene.Registry.view<HPointLight>();
+		for (entt::entity PointLightEntity : PointLightView)
+		{
+			HWorldTransform& WorldTransform = Scene.Get<HWorldTransform>(PointLightEntity);
+			HPointLight& PointLight = Scene.Get<HPointLight>(PointLightEntity);
+
+			const glm::vec3 Displacement = WorldTransform.Translation - WorldPosition;
+			float Distance = glm::length(Displacement);
+			if (Distance < PointLight.Radius)
+			{
+				Color += PointLight.Color;
+			}
+			else
+			{
+				float LightDot = glm::dot(Displacement / Distance, WorldNormal);
+
+				Color += PointLight.Color * glm::max(LightDot, 0.0f) / (Distance * Distance);
+			}
+		}
+
+		return Color;
 	}
 
 	void DrawTracer(HGUIWindow& GUIWindow, HScene& Scene, HTracer& Tracer)
@@ -32,43 +130,38 @@ namespace
 		}
 
 		HGUIImage& Image = GUIWindow.Images[Tracer.ImageIndex];
-		
+
 		const float AspectRatio = float(Image.Width) / float(Image.Height);
 
 		for (uint32_t Y = 0; Y < Image.Height; Y++)
 		{
 			for (uint32_t X = 0; X < Image.Width; X++)
 			{
+				entt::entity CameraEntity = Scene.Cameras[0];
+				HCamera& Camera = Scene.Get<HCamera>(CameraEntity);
+				HWorldTransform& CameraTransform = Scene.Get<HWorldTransform>(CameraEntity);
+
 				glm::vec3 RayDirection = { (float(X) + 0.5f - float(Image.Width) / 2.0f) / float(Image.Width),
-										   (float(Y) + 0.5f - float(Image.Height) / 2.0f) / float(Image.Height) / AspectRatio,
-										   Scene.Camera.FocalLength };
+										   (float(Y) + 0.5f - float(Image.Height) / 2.0f) / float(Image.Height)
+											   / AspectRatio,
+										   Camera.FocalLength };
 				RayDirection = glm::normalize(RayDirection);
 
 				glm::vec3 IntersectionPoint = {};
 				glm::vec3 IntersectionNormal = {};
 
-				glm::vec3 Color = { 0.36f, 0.69f, 0.96f };
-				if (glm::intersectRaySphere(
-					Scene.Camera.Translation,
-					RayDirection,
-					{ 0.0f, 0.0f, 5.0f },
-					1.0f,
-					IntersectionPoint,
-					IntersectionNormal))
+				glm::vec3 Color;
+				if (TraceRay(Scene, CameraTransform.Translation, RayDirection, IntersectionPoint, IntersectionNormal))
 				{
-					float LightDistance = glm::length(IntersectionPoint - glm::vec3{ 1.0f, 0.0f, 3.0f });
-					float LightDot = glm::dot(
-						glm::normalize(glm::vec3{ 1.0f, 3.0f, 0.0f } - IntersectionPoint),
-						IntersectionNormal);
-					Color = glm::max(LightDot, 0.0f) * glm::max(1.0f / (LightDistance * LightDistance), 1.0f)
-						* glm::vec3(0.24f, 0.69f, 0.42f);
+					Color = Lighting(Scene, IntersectionPoint, IntersectionNormal) * glm::vec3(0.24f, 0.69f, 0.42f);
+				}
+				else
+				{
+					Color = { 0.36f, 0.69f, 0.96f };
 				}
 
 				uint64_t PixelOffset1D = Y * Image.Width + X;
-				Image.Bytes[PixelOffset1D * 4 + 0] = glm::clamp<uint32_t>(Color.r * 256.0f, 0, 255);
-				Image.Bytes[PixelOffset1D * 4 + 1] = glm::clamp<uint32_t>(Color.g * 256.0f, 0, 255);
-				Image.Bytes[PixelOffset1D * 4 + 2] = glm::clamp<uint32_t>(Color.b * 256.0f, 0, 255);
-				Image.Bytes[PixelOffset1D * 4 + 3] = 255;
+				Image.Pixels[PixelOffset1D] = ImGui::ColorConvertFloat4ToU32(glm::vec4(Color, 1.0f));
 			}
 		}
 

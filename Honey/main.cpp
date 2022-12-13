@@ -1,4 +1,5 @@
 #include "HImGui.h"
+#include "HScene.h"
 #include "HTracer.h"
 #include "HWindow.h"
 
@@ -30,6 +31,7 @@ int main(int, char**)
 
 	// Our state
 	HScene Scene{};
+	HHoney::DefaultScene(Scene);
 	HTracer Tracer{};
 
 	ImVec4 ClearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
@@ -60,6 +62,8 @@ int main(int, char**)
 		DXGI_SWAP_CHAIN_DESC SwapChainDeesc;
 		GUIWindow.SwapChain.SwapChain->GetDesc(&SwapChainDeesc);
 		HHoney::DrawHoney({ SwapChainDeesc.BufferDesc.Width, SwapChainDeesc.BufferDesc.Height }, GUIWindow, Scene, Tracer);
+
+		HHoney::UpdateScene(Scene);
 
 		// Rendering
 		ImGui::Render();

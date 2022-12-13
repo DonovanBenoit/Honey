@@ -4,8 +4,6 @@ set(CMAKE_CXX_STANDARD 20)
 
 set(SOURCE_FILES
 	Honey/main.cpp
-	Honey/HLessons.h
-	Honey/HLessons.cpp
 	Honey/HScene.h
 	Honey/HScene.cpp
 	Honey/HTracer.h
@@ -19,6 +17,8 @@ add_compile_definitions(NOMINMAX)
 if (MSVC)
 	set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Honey)
 endif()
+
+target_include_directories(Honey PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Libraries/entt/src/)
 
 add_subdirectory(Libraries/glm)
 add_subdirectory(Libraries/ImGui)
