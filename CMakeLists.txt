@@ -4,13 +4,14 @@ set(CMAKE_CXX_STANDARD 20)
 
 set(SOURCE_FILES
 	Honey/main.cpp
-	Honey/HScene.h
-	Honey/HScene.cpp
 	Honey/HTracer.h
 	Honey/HTracer.cpp
 	)
 	
 add_executable(Honey ${SOURCE_FILES})
+
+add_subdirectory(Hive)
+target_link_libraries(Honey PRIVATE Hive)
 
 add_compile_definitions(NOMINMAX)
 

@@ -1,6 +1,6 @@
 #include "HTracer.h"
 
-#include "HScene.h"
+#include "Hive/HScene.h"
 #include "HWindow.h"
 
 #include <HImGui.h>
