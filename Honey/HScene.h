@@ -20,13 +20,13 @@ struct HSphere
 
 struct HMaterial
 {
-	glm::vec3 Albedo;
+	glm::vec3 Albedo = glm::vec3(1.0f, 1.0f, 1.0f);
 };
 
 struct HPointLight
 {
 	glm::vec3 Color = glm::vec3(10.0f, 10.0f, 10.0f);
-	float Radius = 0.05f;
+	float Radius = 0.01f;
 };
 
 struct HRelativeTransform

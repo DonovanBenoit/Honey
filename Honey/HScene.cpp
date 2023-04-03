@@ -1,5 +1,7 @@
 #include "HScene.h"
 
+#include <glm/gtc/random.hpp>
+#include <glm/gtx/color_space.hpp>
 
 entt::entity HScene::CreateCamera()
 {
@@ -16,6 +18,7 @@ entt::entity HScene::CreateSphere()
 	HSphere& Sphere = Registry.emplace<HSphere>(SphereEntity);
 	HWorldTransform& WorldTransform = Registry.emplace<HWorldTransform>(SphereEntity);
 	HRelativeTransform& RelativeTransform = Registry.emplace<HRelativeTransform>(SphereEntity);
+	HMaterial& Material = Registry.emplace<HMaterial>(SphereEntity);
 	return SphereEntity;
 }
 
@@ -30,13 +33,31 @@ entt::entity HScene::CreatePointLight()
 
 void HHoney::DefaultScene(HScene& Scene)
 {
+	srand(1925);
+
 	entt::entity CameraEntity = Scene.CreateCamera();
 	HRelativeTransform& CameraTransform = Scene.Get<HRelativeTransform>(CameraEntity);
-	CameraTransform.Translation = { 0.0, 0.0, -2.0 };
-	entt::entity SphereEntity = Scene.CreateSphere();
+	CameraTransform.Translation = { 0.0, 0.0, -10.0 };
+	HCamera& Camera = Scene.Get<HCamera>(CameraEntity);
+	Camera.FocalLength = 0.5f;
+		
 	entt::entity PointLightEntity = Scene.CreatePointLight();
 	HRelativeTransform& PointLightTransform = Scene.Get<HRelativeTransform>(PointLightEntity);
 	PointLightTransform.Translation = { 0.0, -1.0, -4.0 };
+
+	int32_t SphereCount = 3;
+	for (int32_t SphereIndex = 0; SphereIndex < SphereCount; SphereIndex++)
+	{
+		entt::entity SphereEntity = Scene.CreateSphere();
+		HMaterial& Material = Scene.Get<HMaterial>(SphereEntity);
+		HRelativeTransform& RelativeTransform = Scene.Get<HRelativeTransform>(SphereEntity);
+		HSphere& Sphere = Scene.Get<HSphere>(SphereEntity);
+
+		Sphere.Radius = glm::linearRand(0.2f, 2.0f);
+		RelativeTransform.Translation = glm::sphericalRand(1.0f) * glm::linearRand(0.1f, 10.0f);
+
+		Material.Albedo = glm::abs(glm::sphericalRand(1.0f));
+	}
 }
 
 void HHoney::UpdateScene(HScene& Scene)
