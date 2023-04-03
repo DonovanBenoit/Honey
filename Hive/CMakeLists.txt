@@ -5,11 +5,12 @@ set(SOURCE_FILES
 	Include/Hive/HScene.h
 	Include/Hive/HScene.cpp
 	)
-
-	
-target_include_directories(Honey PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Include)
 	
 add_library(Hive ${SOURCE_FILES})
+
+target_include_directories(Hive
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Include
+)
 
 add_compile_definitions(NOMINMAX)
 

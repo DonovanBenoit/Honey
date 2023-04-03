@@ -1,5 +1,5 @@
 #include "HImGui.h"
-#include "Hive/HScene.h"
+#include <Hive/HScene.h>
 #include "HTracer.h"
 #include "HWindow.h"
 
