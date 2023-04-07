@@ -623,6 +623,7 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex)
 	}
 
 	// Upload
+	GUIWindow.DirectXContext->CopyCommandAllocator->Reset();
 	GUIWindow.DirectXContext->CopyCommandList->Reset(GUIWindow.DirectXContext->CopyCommandAllocator, nullptr);
 	CD3DX12_RESOURCE_BARRIER StartCopyBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
 		GUIImage.Resource,
