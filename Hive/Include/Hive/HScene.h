@@ -15,7 +15,8 @@ struct HCamera
 
 struct HSphere
 {
-	float Radius = 0.5f;
+	float Radius = 0.5f;;
+	float RadiusSquared = 0.25f;
 };
 
 struct HMaterial

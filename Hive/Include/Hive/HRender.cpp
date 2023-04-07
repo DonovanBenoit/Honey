@@ -12,6 +12,29 @@
 
 namespace
 {
+	bool RaySphereIntersect(
+		const glm::vec3& RayOrigin,
+		const glm::vec3& RayDirection,
+		const glm::vec3& SphereCenter,
+		float SphereRadiusSquared,
+		float& IntersectionDistance)
+	{
+		constexpr float Epsilon = std::numeric_limits<float>::epsilon();
+
+		glm::vec3 L = SphereCenter - RayOrigin;
+		float t0 = glm::dot(L, RayDirection);
+		float d2 = glm::dot(L, L) - t0 * t0;
+		if (d2 > SphereRadiusSquared)
+		{
+			// The ray misses the sphere
+			return false;
+		}
+
+		float t1 = glm::sqrt(SphereRadiusSquared - d2);
+		IntersectionDistance = t0 > t1 + Epsilon ? t0 - t1 : t0 + t1;
+		return IntersectionDistance > Epsilon;
+	}
+
 	bool TraceRay(
 		HScene& Scene,
 		const glm::vec3& RayOrigin,
@@ -29,7 +52,12 @@ namespace
 			HWorldTransform& WorldTransform = Scene.Get<HWorldTransform>(SphereEntity);
 
 			float SphereHit = 0.0f;
-			if (glm::intersectRaySphere(RayOrigin, RayDirection, WorldTransform.Translation, Sphere.Radius, SphereHit))
+			if (glm::intersectRaySphere(
+					RayOrigin,
+					RayDirection,
+					WorldTransform.Translation,
+					Sphere.RadiusSquared,
+					SphereHit))
 			{
 				if (SphereHit < THit)
 				{
@@ -86,7 +114,6 @@ void HHoney::Render(HScene& Scene, HGUIImage& Image, entt::entity CameraEntity)
 	const HWorldTransform& CameraTransform = Scene.Get<HWorldTransform>(CameraEntity);
 	const float AspectRatio = float(Image.Height) / float(Image.Width);
 
-
 	const float OneOverWidth = 1.0f / float(Image.Width);
 	const float OneOverHeight = 1.0f / float(Image.Height);
 
@@ -107,7 +134,7 @@ void HHoney::Render(HScene& Scene, HGUIImage& Image, entt::entity CameraEntity)
 			glm::vec3 IntersectionAlbedo = {};
 			if (TraceRay(Scene, RayOrigin, RayDirection, IntersectionPoint, IntersectionNormal, IntersectionAlbedo))
 			{
-				Color = Lighting(Scene, IntersectionPoint, IntersectionNormal)* IntersectionAlbedo;
+				Color = Lighting(Scene, IntersectionPoint, IntersectionNormal) * IntersectionAlbedo;
 			}
 			else
 			{

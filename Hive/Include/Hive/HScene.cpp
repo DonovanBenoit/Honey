@@ -40,7 +40,7 @@ void HHoney::DefaultScene(HScene& Scene)
 	CameraTransform.Translation = { 0.0, 0.0, -10.0 };
 	HCamera& Camera = Scene.Get<HCamera>(CameraEntity);
 	Camera.FocalLength = 0.5f;
-		
+
 	entt::entity PointLightEntity = Scene.CreatePointLight();
 	HRelativeTransform& PointLightTransform = Scene.Get<HRelativeTransform>(PointLightEntity);
 	PointLightTransform.Translation = { 0.0, -1.0, -4.0 };
@@ -71,4 +71,7 @@ void HHoney::UpdateScene(HScene& Scene)
 		WorldTransform.Translation = RelativeTransform.Translation;
 		WorldTransform.Rotation = glm::quat(RelativeTransform.Rotation);
 	}
+
+	Scene.Registry.view<HSphere>().each(
+		[](entt::entity Entity, HSphere& Sphere) { Sphere.RadiusSquared = Sphere.Radius * Sphere.Radius; });
 }
