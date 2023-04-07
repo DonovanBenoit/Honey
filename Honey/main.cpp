@@ -64,7 +64,7 @@ int main(int, char**)
 		GUIWindow.SwapChain.SwapChain->GetDesc(&SwapChainDeesc);
 		HHoney::DrawHoney({ SwapChainDeesc.BufferDesc.Width, SwapChainDeesc.BufferDesc.Height }, GUIWindow, Scene, RenderWindow);
 
-		HHoney::UpdateScene(Scene);
+		HHoney::UpdateScene(Scene, Scene.Cameras[0]);
 
 		// Rendering
 		ImGui::Render();

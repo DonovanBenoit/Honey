@@ -19,6 +19,7 @@ entt::entity HScene::CreateSphere()
 	HWorldTransform& WorldTransform = Registry.emplace<HWorldTransform>(SphereEntity);
 	HRelativeTransform& RelativeTransform = Registry.emplace<HRelativeTransform>(SphereEntity);
 	HMaterial& Material = Registry.emplace<HMaterial>(SphereEntity);
+	RenderedSpheres.emplace_back();
 	return SphereEntity;
 }
 
@@ -60,7 +61,7 @@ void HHoney::DefaultScene(HScene& Scene)
 	}
 }
 
-void HHoney::UpdateScene(HScene& Scene)
+void HHoney::UpdateScene(HScene& Scene, entt::entity CameraEntity)
 {
 	auto TransformView = Scene.Registry.view<HRelativeTransform, HWorldTransform>();
 	for (entt::entity TransformEntity : TransformView)
@@ -72,6 +73,14 @@ void HHoney::UpdateScene(HScene& Scene)
 		WorldTransform.Rotation = glm::quat(RelativeTransform.Rotation);
 	}
 
-	Scene.Registry.view<HSphere>().each(
-		[](entt::entity Entity, HSphere& Sphere) { Sphere.RadiusSquared = Sphere.Radius * Sphere.Radius; });
+	const HWorldTransform& CameraTransform = Scene.Get<HWorldTransform>(CameraEntity);
+
+	uint64_t SphereIndex = 0;
+	Scene.Registry.view<HSphere, HWorldTransform>().each(
+		[&](entt::entity Entity, HSphere& Sphere, HWorldTransform& WorldTransform) {
+			HRenderedSphere& RenderedSphere = Scene.RenderedSpheres[SphereIndex++];
+			RenderedSphere.RadiusSquared = Sphere.Radius * Sphere.Radius;
+			RenderedSphere.RayOriginToSphereCenter = WorldTransform.Translation - CameraTransform.Translation;
+			RenderedSphere.SphereEntity = Entity;
+		});
 }

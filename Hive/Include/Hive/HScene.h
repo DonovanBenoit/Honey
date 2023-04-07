@@ -15,8 +15,14 @@ struct HCamera
 
 struct HSphere
 {
-	float Radius = 0.5f;;
+	float Radius = 0.5f;
+};
+
+struct HRenderedSphere
+{
 	float RadiusSquared = 0.25f;
+	glm::vec3 RayOriginToSphereCenter = {};
+	entt::entity SphereEntity = entt::null;
 };
 
 struct HMaterial
@@ -61,11 +67,13 @@ struct HScene
 	{
 		return Registry.get<T>(Entity);
 	}
+
+	std::vector<HRenderedSphere> RenderedSpheres{};
 };
 
 namespace HHoney
 {
 	void DefaultScene(HScene& Scene);
 
-	void UpdateScene(HScene& Scene);
+	void UpdateScene(HScene& Scene, entt::entity CameraEntity);
 }

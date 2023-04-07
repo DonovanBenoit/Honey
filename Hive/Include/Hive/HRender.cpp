@@ -13,24 +13,21 @@
 namespace
 {
 	bool RaySphereIntersect(
-		const glm::vec3& RayOrigin,
+		HRenderedSphere& RenderedSphere,
 		const glm::vec3& RayDirection,
-		const glm::vec3& SphereCenter,
-		float SphereRadiusSquared,
 		float& IntersectionDistance)
 	{
 		constexpr float Epsilon = std::numeric_limits<float>::epsilon();
 
-		glm::vec3 L = SphereCenter - RayOrigin;
-		float t0 = glm::dot(L, RayDirection);
-		float d2 = glm::dot(L, L) - t0 * t0;
-		if (d2 > SphereRadiusSquared)
+		float t0 = glm::dot(RenderedSphere.RayOriginToSphereCenter, RayDirection);
+		float d2 = glm::dot(RenderedSphere.RayOriginToSphereCenter, RenderedSphere.RayOriginToSphereCenter) - t0 * t0;
+		if (d2 > RenderedSphere.RadiusSquared)
 		{
 			// The ray misses the sphere
 			return false;
 		}
 
-		float t1 = glm::sqrt(SphereRadiusSquared - d2);
+		float t1 = glm::sqrt(RenderedSphere.RadiusSquared - d2);
 		IntersectionDistance = t0 > t1 + Epsilon ? t0 - t1 : t0 + t1;
 		return IntersectionDistance > Epsilon;
 	}
@@ -46,30 +43,30 @@ namespace
 		float FarClip = 1000.0f;
 		float THit = FarClip;
 
-		for (entt::entity SphereEntity : Scene.Spheres)
-		{
-			HSphere& Sphere = Scene.Get<HSphere>(SphereEntity);
-			HWorldTransform& WorldTransform = Scene.Get<HWorldTransform>(SphereEntity);
+		entt::entity HitEntity = entt::null;
 
+		for (HRenderedSphere& RenderedSphere : Scene.RenderedSpheres)
+		{
 			float SphereHit = 0.0f;
-			if (glm::intersectRaySphere(
-					RayOrigin,
-					RayDirection,
-					WorldTransform.Translation,
-					Sphere.RadiusSquared,
-					SphereHit))
+			if (RaySphereIntersect(RenderedSphere, RayDirection, SphereHit))
 			{
 				if (SphereHit < THit)
 				{
 					THit = SphereHit;
 
-					HMaterial& Material = Scene.Get<HMaterial>(SphereEntity);
-
-					HitPosition = RayOrigin + RayDirection * THit;
-					HitNormal = glm::normalize((HitPosition - WorldTransform.Translation) / Sphere.Radius);
-					Albedo = Material.Albedo;
+					HitEntity = RenderedSphere.SphereEntity;
 				}
 			}
+		}
+
+		if (HitEntity != entt::null)
+		{
+			HMaterial& Material = Scene.Get<HMaterial>(HitEntity);
+			HSphere& Sphere = Scene.Get<HSphere>(HitEntity);
+			HWorldTransform& WorldTransform = Scene.Get<HWorldTransform>(HitEntity);
+			HitPosition = RayOrigin + RayDirection * THit;
+			HitNormal = glm::normalize((HitPosition - WorldTransform.Translation) / Sphere.Radius);
+			Albedo = Material.Albedo;
 		}
 
 		return THit < FarClip;
