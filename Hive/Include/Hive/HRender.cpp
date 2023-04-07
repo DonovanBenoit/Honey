@@ -43,7 +43,7 @@ namespace
 		float FarClip = 1000.0f;
 		float THit = FarClip;
 
-		entt::entity HitEntity = entt::null;
+		entt::entity HitSphereEntity = entt::null;
 
 		for (HRenderedSphere& RenderedSphere : Scene.RenderedSpheres)
 		{
@@ -53,17 +53,16 @@ namespace
 				if (SphereHit < THit)
 				{
 					THit = SphereHit;
-
-					HitEntity = RenderedSphere.SphereEntity;
+					HitSphereEntity = RenderedSphere.SphereEntity;
 				}
 			}
 		}
 
-		if (HitEntity != entt::null)
+		if (HitSphereEntity != entt::null)
 		{
-			HMaterial& Material = Scene.Get<HMaterial>(HitEntity);
-			HSphere& Sphere = Scene.Get<HSphere>(HitEntity);
-			HWorldTransform& WorldTransform = Scene.Get<HWorldTransform>(HitEntity);
+			HMaterial& Material = Scene.Get<HMaterial>(HitSphereEntity);
+			HSphere& Sphere = Scene.Get<HSphere>(HitSphereEntity);
+			HWorldTransform& WorldTransform = Scene.Get<HWorldTransform>(HitSphereEntity);
 			HitPosition = RayOrigin + RayDirection * THit;
 			HitNormal = glm::normalize((HitPosition - WorldTransform.Translation) / Sphere.Radius);
 			Albedo = Material.Albedo;
