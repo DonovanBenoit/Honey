@@ -2,15 +2,12 @@
 
 #include <glm/glm.hpp>
 
+struct HGUIImage;
 struct HGUIWindow;
+struct HRenderWindow;
 struct HScene;
-
-struct HTracer
-{
-	int64_t ImageIndex = -1;
-};
 
 namespace HHoney
 {
-	void DrawHoney(const glm::vec2& Resolution, HGUIWindow& GUIWindow, HScene& Scene, HTracer& Tracer);
+	void DrawHoney(const glm::vec2& Resolution, HGUIWindow& GUIWindow, HScene& Scene, HRenderWindow& Tracer);
 }
