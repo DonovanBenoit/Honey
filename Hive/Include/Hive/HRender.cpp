@@ -110,6 +110,7 @@ void HHoney::Render(HScene& Scene, HGUIImage& Image, entt::entity CameraEntity)
 	const float OneOverWidth = 1.0f / float(Image.Width);
 	const float OneOverHeight = 1.0f / float(Image.Height);
 
+	const uint64_t Size = Image.Width * Image.Height;
 	static std::vector<glm::vec3> RayDirections;
 	if (RayDirections.size() != Image.Width * Image.Height)
 	{
@@ -118,32 +119,34 @@ void HHoney::Render(HScene& Scene, HGUIImage& Image, entt::entity CameraEntity)
 		{
 			for (uint32_t X = 0; X < Image.Width; X++)
 			{
-				RayDirections.emplace_back(
-					glm::normalize(glm::vec3{ (float(X) + 0.5f - float(Image.Width) * 0.5f) * OneOverWidth,
-											  (float(Y) + 0.5f - float(Image.Height) * 0.5f) * OneOverHeight * AspectRatio,
-											  Camera.FocalLength }));
-
+				RayDirections.emplace_back(glm::normalize(
+					glm::vec3{ (float(X) + 0.5f - float(Image.Width) * 0.5f) * OneOverWidth,
+							   (float(Y) + 0.5f - float(Image.Height) * 0.5f) * OneOverHeight * AspectRatio,
+							   Camera.FocalLength }));
 			}
 		}
 	}
 
 	glm::vec3 RayOrigin = CameraTransform.Translation;
-	for (uint32_t Y = 0; Y < Image.Height; Y++)
+	for (uint32_t Pixel = 0; Pixel < Size; Pixel++)
 	{
-		for (uint32_t X = 0; X < Image.Width; X++)
+		glm::vec3 IntersectionPoint = {};
+		glm::vec3 IntersectionNormal = {};
+		glm::vec3 IntersectionAlbedo = {};
+		if (TraceRay(
+				Scene,
+				RayOrigin,
+				RayDirections[Pixel],
+				IntersectionPoint,
+				IntersectionNormal,
+				IntersectionAlbedo))
 		{
-			glm::vec3 IntersectionPoint = {};
-			glm::vec3 IntersectionNormal = {};
-			glm::vec3 IntersectionAlbedo = {};
-			if (TraceRay(Scene, RayOrigin, RayDirections[Y * Image.Width + X], IntersectionPoint, IntersectionNormal, IntersectionAlbedo))
-			{
-				Image.Pixels[Y * Image.Width + X] = ImGui::ColorConvertFloat4ToU32(
-					glm::vec4(Lighting(Scene, IntersectionPoint, IntersectionNormal) * IntersectionAlbedo, 1.0f));
-			}
-			else
-			{
-				Image.Pixels[Y * Image.Width + X] = 0xFFF5B05C;
-			}
+			Image.Pixels[Pixel] = ImGui::ColorConvertFloat4ToU32(
+				glm::vec4(Lighting(Scene, IntersectionPoint, IntersectionNormal) * IntersectionAlbedo, 1.0f));
+		}
+		else
+		{
+			Image.Pixels[Pixel] = 0xFFF5B05C;
 		}
 	}
 }

@@ -46,7 +46,7 @@ void HHoney::DefaultScene(HScene& Scene)
 	HRelativeTransform& PointLightTransform = Scene.Get<HRelativeTransform>(PointLightEntity);
 	PointLightTransform.Translation = { 0.0, -1.0, -4.0 };
 
-	int32_t SphereCount = 8;
+	int32_t SphereCount = 3;
 	for (int32_t SphereIndex = 0; SphereIndex < SphereCount; SphereIndex++)
 	{
 		entt::entity SphereEntity = Scene.CreateSphere();
