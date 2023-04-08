@@ -110,20 +110,32 @@ void HHoney::Render(HScene& Scene, HGUIImage& Image, entt::entity CameraEntity)
 	const float OneOverWidth = 1.0f / float(Image.Width);
 	const float OneOverHeight = 1.0f / float(Image.Height);
 
+	static std::vector<glm::vec3> RayDirections;
+	if (RayDirections.size() != Image.Width * Image.Height)
+	{
+		RayDirections.clear();
+		for (uint32_t Y = 0; Y < Image.Height; Y++)
+		{
+			for (uint32_t X = 0; X < Image.Width; X++)
+			{
+				RayDirections.emplace_back(
+					glm::normalize(glm::vec3{ (float(X) + 0.5f - float(Image.Width) * 0.5f) * OneOverWidth,
+											  (float(Y) + 0.5f - float(Image.Height) * 0.5f) * OneOverHeight * AspectRatio,
+											  Camera.FocalLength }));
+
+			}
+		}
+	}
+
 	glm::vec3 RayOrigin = CameraTransform.Translation;
 	for (uint32_t Y = 0; Y < Image.Height; Y++)
 	{
 		for (uint32_t X = 0; X < Image.Width; X++)
 		{
-			glm::vec3 RayDirection =
-				glm::normalize(glm::vec3{ (float(X) + 0.5f - float(Image.Width) * 0.5f) * OneOverWidth,
-										  (float(Y) + 0.5f - float(Image.Height) * 0.5f) * OneOverHeight * AspectRatio,
-										  Camera.FocalLength });
-
 			glm::vec3 IntersectionPoint = {};
 			glm::vec3 IntersectionNormal = {};
 			glm::vec3 IntersectionAlbedo = {};
-			if (TraceRay(Scene, RayOrigin, RayDirection, IntersectionPoint, IntersectionNormal, IntersectionAlbedo))
+			if (TraceRay(Scene, RayOrigin, RayDirections[Y * Image.Width + X], IntersectionPoint, IntersectionNormal, IntersectionAlbedo))
 			{
 				Image.Pixels[Y * Image.Width + X] = ImGui::ColorConvertFloat4ToU32(
 					glm::vec4(Lighting(Scene, IntersectionPoint, IntersectionNormal) * IntersectionAlbedo, 1.0f));
