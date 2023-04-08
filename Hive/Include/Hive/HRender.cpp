@@ -64,7 +64,7 @@ namespace
 			HSphere& Sphere = Scene.Get<HSphere>(HitSphereEntity);
 			HWorldTransform& WorldTransform = Scene.Get<HWorldTransform>(HitSphereEntity);
 			HitPosition = RayOrigin + RayDirection * THit;
-			HitNormal = glm::normalize((HitPosition - WorldTransform.Translation) / Sphere.Radius);
+			HitNormal = (HitPosition - WorldTransform.Translation) / Sphere.Radius;
 			Albedo = Material.Albedo;
 		}
 
