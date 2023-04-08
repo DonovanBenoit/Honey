@@ -12,10 +12,7 @@
 
 namespace
 {
-	bool RaySphereIntersect(
-		HRenderedSphere& RenderedSphere,
-		const glm::vec3& RayDirection,
-		float& IntersectionDistance)
+	bool RaySphereIntersect(HRenderedSphere& RenderedSphere, const glm::vec3& RayDirection, float& IntersectionDistance)
 	{
 		constexpr float Epsilon = std::numeric_limits<float>::epsilon();
 
@@ -123,21 +120,18 @@ void HHoney::Render(HScene& Scene, HGUIImage& Image, entt::entity CameraEntity)
 										  (float(Y) + 0.5f - float(Image.Height) * 0.5f) * OneOverHeight * AspectRatio,
 										  Camera.FocalLength });
 
-			glm::vec3 Color;
-
 			glm::vec3 IntersectionPoint = {};
 			glm::vec3 IntersectionNormal = {};
 			glm::vec3 IntersectionAlbedo = {};
 			if (TraceRay(Scene, RayOrigin, RayDirection, IntersectionPoint, IntersectionNormal, IntersectionAlbedo))
 			{
-				Color = Lighting(Scene, IntersectionPoint, IntersectionNormal) * IntersectionAlbedo;
+				Image.Pixels[Y * Image.Width + X] = ImGui::ColorConvertFloat4ToU32(
+					glm::vec4(Lighting(Scene, IntersectionPoint, IntersectionNormal) * IntersectionAlbedo, 1.0f));
 			}
 			else
 			{
-				Color = { 0.36f, 0.69f, 0.96f };
+				Image.Pixels[Y * Image.Width + X] = 0xFFF5B05C;
 			}
-
-			Image.Pixels[Y * Image.Width + X] = ImGui::ColorConvertFloat4ToU32(glm::vec4(Color, 1.0f));
 		}
 	}
 }
