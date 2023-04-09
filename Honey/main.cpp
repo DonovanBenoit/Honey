@@ -13,23 +13,6 @@ int main(int, char**)
 	HGUIWindow GUIWindow{};
 	HImGui::CreateGUIWindow(GUIWindow);
 
-	// Setup Dear ImGui context
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-
-	// Setup Dear ImGui style
-	ImGui::StyleColorsDark();
-
-	// Setup Platform/Renderer backends
-	ImGui_ImplWin32_Init(GUIWindow.WindowHandle);
-	ImGui_ImplDX12_Init(
-		GUIWindow.DirectXContext->Device,
-		HDirectXContext::NUM_FRAMES_IN_FLIGHT,
-		DXGI_FORMAT_R8G8B8A8_UNORM,
-		GUIWindow.CBVSRVUAV_DescHeap,
-		GUIWindow.CBVSRVUAV_DescHeap->GetCPUDescriptorHandleForHeapStart(),
-		GUIWindow.CBVSRVUAV_DescHeap->GetGPUDescriptorHandleForHeapStart());
-
 	// Our state
 	HScene Scene{};
 	HHoney::DefaultScene(Scene);
@@ -41,24 +24,11 @@ int main(int, char**)
 	bool Quit = false;
 	while (!Quit)
 	{
-		// Poll and handle messages (inputs, window resize, etc.)
-		// See the WndProc() function below for our to dispatch events to the Win32
-		// backend.
-		MSG msg;
-		while (::PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
-		{
-			::TranslateMessage(&msg);
-			::DispatchMessage(&msg);
-			if (msg.message == WM_QUIT)
-				Quit = true;
-		}
+		HImGui::NewFrame(GUIWindow, Quit);
 		if (Quit)
+		{
 			break;
-
-		// Start the Dear ImGui frame
-		ImGui_ImplDX12_NewFrame();
-		ImGui_ImplWin32_NewFrame();
-		ImGui::NewFrame();
+		}
 
 		DXGI_SWAP_CHAIN_DESC SwapChainDeesc;
 		GUIWindow.SwapChain.SwapChain->GetDesc(&SwapChainDeesc);

@@ -249,7 +249,48 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	ShowWindow(GUIWindow.WindowHandle, SW_SHOWDEFAULT);
 	UpdateWindow(GUIWindow.WindowHandle);
 
+	// Setup Dear ImGui context
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+
+	// Setup Dear ImGui style
+	ImGui::StyleColorsDark();
+
+	// Setup Platform/Renderer backends
+	ImGui_ImplWin32_Init(GUIWindow.WindowHandle);
+	ImGui_ImplDX12_Init(
+		GUIWindow.DirectXContext->Device,
+		HDirectXContext::NUM_FRAMES_IN_FLIGHT,
+		DXGI_FORMAT_R8G8B8A8_UNORM,
+		GUIWindow.CBVSRVUAV_DescHeap,
+		GUIWindow.CBVSRVUAV_DescHeap->GetCPUDescriptorHandleForHeapStart(),
+		GUIWindow.CBVSRVUAV_DescHeap->GetGPUDescriptorHandleForHeapStart());
+
 	return true;
+}
+
+void HImGui::NewFrame(HGUIWindow& GUIWindow, bool& Quit)
+{
+	// Poll and handle messages (inputs, window resize, etc.)
+	// See the WndProc() function below for our to dispatch events to the Win32
+	// backend.
+	MSG Message;
+	while (::PeekMessage(&Message, NULL, 0U, 0U, PM_REMOVE))
+	{
+		::TranslateMessage(&Message);
+		::DispatchMessage(&Message);
+		if (Message.message == WM_QUIT)
+			Quit = true;
+	}
+	if (Quit)
+	{
+		return;
+	}
+
+	// Start the Dear ImGui frame
+	ImGui_ImplDX12_NewFrame();
+	ImGui_ImplWin32_NewFrame();
+	ImGui::NewFrame();
 }
 
 void HImGui::DestroyGUIWindow(HGUIWindow& GUIWindow)

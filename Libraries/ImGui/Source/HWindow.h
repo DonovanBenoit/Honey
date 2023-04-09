@@ -57,6 +57,7 @@ namespace HImGui
 {
 	bool CreateGUIWindow(HGUIWindow& GUIWindow);
 	void DestroyGUIWindow(HGUIWindow& GUIWindow);
+	void NewFrame(HGUIWindow& GUIWindow, bool& Quit);
 
 	void CreateRenderTargets(HGUIWindow& GUIWindow);
 	void DestroyRenderTargets(HGUIWindow& GUIWindow);

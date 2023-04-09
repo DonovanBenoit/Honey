@@ -18,10 +18,11 @@ struct HSphere
 	float Radius = 0.5f;
 };
 
+template<uint64_t Dimensions = 3>
 struct HMesh
 {
-	std::vector<glm::vec3> Positions;
-	std::vector<glm::vec3> Normals;
+	std::vector<glm::vec<Dimensions, float>> Positions;
+	std::vector<glm::vec<Dimensions, float>> Normals;
 };
 
 struct HRenderedSphere
