@@ -18,6 +18,12 @@ struct HSphere
 	float Radius = 0.5f;
 };
 
+struct HMesh
+{
+	std::vector<glm::vec3> Positions;
+	std::vector<glm::vec3> Normals;
+};
+
 struct HRenderedSphere
 {
 	float RadiusSquared = 0.25f;

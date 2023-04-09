@@ -4,7 +4,10 @@
 #include "HWindow.h"
 
 #include <HImGui.h>
+
 #include <chrono>
+#include <thread>
+
 #include <entt/entt.hpp>
 #include <format>
 #include <glm/gtx/intersect.hpp>
@@ -105,16 +108,15 @@ void HHoney::Render(HScene& Scene, HGUIImage& Image, entt::entity CameraEntity)
 {
 	const HCamera& Camera = Scene.Get<HCamera>(CameraEntity);
 	const HWorldTransform& CameraTransform = Scene.Get<HWorldTransform>(CameraEntity);
-	const float AspectRatio = float(Image.Height) / float(Image.Width);
-
-	const float OneOverWidth = 1.0f / float(Image.Width);
-	const float OneOverHeight = 1.0f / float(Image.Height);
 
 	const uint64_t Size = Image.Width * Image.Height;
 	static std::vector<glm::vec3> RayDirections;
 	if (RayDirections.size() != Image.Width * Image.Height)
 	{
 		RayDirections.clear();
+		const float OneOverWidth = 1.0f / float(Image.Width);
+		const float OneOverHeight = 1.0f / float(Image.Height);
+		const float AspectRatio = float(Image.Height) / float(Image.Width);
 		for (uint32_t Y = 0; Y < Image.Height; Y++)
 		{
 			for (uint32_t X = 0; X < Image.Width; X++)
@@ -126,6 +128,7 @@ void HHoney::Render(HScene& Scene, HGUIImage& Image, entt::entity CameraEntity)
 			}
 		}
 	}
+	std::thread::hardware_concurrency();
 
 	glm::vec3 RayOrigin = CameraTransform.Translation;
 	for (uint32_t Pixel = 0; Pixel < Size; Pixel++)
