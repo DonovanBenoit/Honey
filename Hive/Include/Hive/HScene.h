@@ -35,6 +35,8 @@ struct HRenderedSphere
 struct HMaterial
 {
 	glm::vec3 Albedo = glm::vec3(1.0f, 1.0f, 1.0f);
+	float Roughness = 0.0f;
+	float Metallic = 0.0f;
 };
 
 struct HPointLight

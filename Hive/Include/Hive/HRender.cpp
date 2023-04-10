@@ -4,14 +4,14 @@
 #include "HWindow.h"
 
 #include <HImGui.h>
-
 #include <chrono>
-#include <thread>
-
 #include <entt/entt.hpp>
 #include <format>
+#include <future>
 #include <glm/gtx/intersect.hpp>
 #include <imgui.h>
+#include <thread>
+#include <vector>
 
 namespace
 {
@@ -102,6 +102,11 @@ namespace
 		return Color;
 	}
 
+	uint64_t Ceil(uint64_t Dividend, uint64_t Divisior)
+	{
+		return (Dividend + Divisior - 1) / Divisior;
+	}
+
 } // namespace
 
 void HHoney::Render(HScene& Scene, HGUIImage& Image, entt::entity CameraEntity)
@@ -128,29 +133,41 @@ void HHoney::Render(HScene& Scene, HGUIImage& Image, entt::entity CameraEntity)
 			}
 		}
 	}
-	std::thread::hardware_concurrency();
-
 	glm::vec3 RayOrigin = CameraTransform.Translation;
-	for (uint32_t Pixel = 0; Pixel < Size; Pixel++)
+	uint32_t ThreadCount = glm::max<uint32_t>(std::thread::hardware_concurrency() - 1, 1);
+	uint32_t RowsPerThread = Ceil(Image.Height, ThreadCount);
+	std::vector<std::future<void>> RenderFutures;
+	for (uint32_t Thread = 0; Thread < ThreadCount; Thread++)
 	{
-		glm::vec3 IntersectionPoint = {};
-		glm::vec3 IntersectionNormal = {};
-		glm::vec3 IntersectionAlbedo = {};
-		if (TraceRay(
-				Scene,
-				RayOrigin,
-				RayDirections[Pixel],
-				IntersectionPoint,
-				IntersectionNormal,
-				IntersectionAlbedo))
-		{
-			Image.Pixels[Pixel] = ImGui::ColorConvertFloat4ToU32(
-				glm::vec4(Lighting(Scene, IntersectionPoint, IntersectionNormal) * IntersectionAlbedo, 1.0f));
-		}
-		else
-		{
-			Image.Pixels[Pixel] = 0xFFF5B05C;
-		}
+		RenderFutures.emplace_back(std::async(
+			[&](uint32_t YStart, uint32_t YEnd) {
+				for (uint32_t Y = YStart; Y < YEnd; Y++)
+				{
+					for (uint32_t X = 0; X < Image.Width; X++)
+					{
+						uint32_t Pixel = Y * Image.Width + X;
+						glm::vec3 IntersectionPoint = {};
+						glm::vec3 IntersectionNormal = {};
+						glm::vec3 IntersectionAlbedo = {};
+						if (TraceRay(Scene, RayOrigin, RayDirections[Pixel], IntersectionPoint, IntersectionNormal, IntersectionAlbedo))
+						{
+							Image.Pixels[Pixel] = ImGui::ColorConvertFloat4ToU32(
+								glm::vec4(Lighting(Scene, IntersectionPoint, IntersectionNormal) * IntersectionAlbedo, 1.0f));
+						}
+						else
+						{
+							Image.Pixels[Pixel] = 0xFFF5B05C;
+						}
+					}
+				}
+			},
+			Thread * RowsPerThread,
+			glm::min<uint32_t>((Thread + 1) * RowsPerThread, Image.Height)));
+	}
+
+	for (std::future<void>& RenderFuture : RenderFutures)
+	{
+		RenderFuture.wait();
 	}
 }
 
