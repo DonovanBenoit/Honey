@@ -99,13 +99,127 @@ bool HDirectX::CreateCommandList(
 	ID3D12Device* Device,
 	D3D12_COMMAND_LIST_TYPE Type)
 {
-	if (Device->CreateCommandList(0, Type, CommandAllocator, NULL, IID_PPV_ARGS(CommandList))
-			!= S_OK
+	if (Device->CreateCommandList(0, Type, CommandAllocator, NULL, IID_PPV_ARGS(CommandList)) != S_OK
 		|| (*CommandList)->Close() != S_OK)
 	{
 		return false;
 	}
 	return true;
+}
+
+bool HDirectX::CreateRootSignature(
+	Microsoft::WRL::ComPtr<ID3D12RootSignature>& RootSiganature,
+	CD3DX12_ROOT_SIGNATURE_DESC& RootSignatureDesc,
+	ID3D12Device* Device)
+{
+	ID3DBlob* SignatureBlob = nullptr;
+	ID3DBlob* ErrorBlob = nullptr;
+
+	HRESULT Result =
+		D3D12SerializeRootSignature(&RootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &SignatureBlob, &ErrorBlob);
+	if (Result != S_OK)
+	{
+		if (SignatureBlob != nullptr)
+		{
+			SignatureBlob->Release();
+		}
+		if (ErrorBlob != nullptr)
+		{
+			ErrorBlob->Release();
+		}
+		return false;
+	}
+
+	Result = Device->CreateRootSignature(
+		0,
+		SignatureBlob->GetBufferPointer(),
+		SignatureBlob->GetBufferSize(),
+		IID_PPV_ARGS(&RootSiganature));
+
+	if (SignatureBlob != nullptr)
+	{
+		SignatureBlob->Release();
+	}
+	if (ErrorBlob != nullptr)
+	{
+		ErrorBlob->Release();
+	}
+
+	return Result == S_OK;
+}
+
+#include <d3dcompiler.h>
+// #include <wrl/client.h>
+
+bool HDirectX::CreateComputePipelineState(
+	Microsoft::WRL::ComPtr<ID3D12PipelineState>& PipelineState,
+	ID3D12RootSignature* RootSiganature,
+	ID3D12Device* Device)
+{
+	// Compile the compute shader
+	Microsoft::WRL::ComPtr<ID3DBlob> ComputeShaderBlob;
+	Microsoft::WRL::ComPtr<ID3DBlob> ErrorBlob;
+	HRESULT Result = D3DCompileFromFile(
+		L"compute_shader.hlsl",
+		nullptr,
+		nullptr,
+		"main",
+		"cs_5_0",
+		0,
+		0,
+		&ComputeShaderBlob,
+		&ErrorBlob);
+	if (FAILED(Result))
+	{
+		// Handle compilation error
+		if (ErrorBlob)
+		{
+			OutputDebugStringA((char*)ErrorBlob->GetBufferPointer());
+		}
+		return false;
+	}
+
+	// Create the compute shader
+	D3D12_SHADER_BYTECODE ComputeShaderBytecode = {};
+	ComputeShaderBytecode.pShaderBytecode = ComputeShaderBlob->GetBufferPointer();
+	ComputeShaderBytecode.BytecodeLength = ComputeShaderBlob->GetBufferSize();
+
+	D3D12_COMPUTE_PIPELINE_STATE_DESC Desc{};
+	Desc.pRootSignature = RootSiganature;
+	Desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+	Desc.CS = ComputeShaderBytecode;
+
+	Result = Device->CreateComputePipelineState(&Desc, IID_PPV_ARGS(&PipelineState));
+	
+	return Result == S_OK;
+}
+
+bool HDirectX::CreateUnorderedTextureResource(ID3D12Resource** Resource, ID3D12Device* Device)
+{
+	D3D12_RESOURCE_DESC TextureDesc = {};
+	TextureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	TextureDesc.Alignment = 0;
+	TextureDesc.Width = 1024;
+	TextureDesc.Height = 1024;
+	TextureDesc.DepthOrArraySize = 1;
+	TextureDesc.MipLevels = 1;
+	TextureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	TextureDesc.SampleDesc.Count = 1;
+	TextureDesc.SampleDesc.Quality = 0;
+	TextureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	TextureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+	// Create the texture resource
+	CD3DX12_HEAP_PROPERTIES DefaultHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
+	HRESULT Result = Device->CreateCommittedResource(
+		&DefaultHeapProperties,
+		D3D12_HEAP_FLAG_NONE,
+		&TextureDesc,
+		D3D12_RESOURCE_STATE_COMMON,
+		nullptr,
+		IID_PPV_ARGS(Resource));
+
+	return SUCCEEDED(Result);
 }
 
 bool HDirectX::CreateFence(HFence& Fence, ID3D12Device* Device)

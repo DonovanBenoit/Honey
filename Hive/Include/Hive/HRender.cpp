@@ -149,10 +149,17 @@ void HHoney::Render(HScene& Scene, HGUIImage& Image, entt::entity CameraEntity)
 						glm::vec3 IntersectionPoint = {};
 						glm::vec3 IntersectionNormal = {};
 						glm::vec3 IntersectionAlbedo = {};
-						if (TraceRay(Scene, RayOrigin, RayDirections[Pixel], IntersectionPoint, IntersectionNormal, IntersectionAlbedo))
+						if (TraceRay(
+								Scene,
+								RayOrigin,
+								RayDirections[Pixel],
+								IntersectionPoint,
+								IntersectionNormal,
+								IntersectionAlbedo))
 						{
-							Image.Pixels[Pixel] = ImGui::ColorConvertFloat4ToU32(
-								glm::vec4(Lighting(Scene, IntersectionPoint, IntersectionNormal) * IntersectionAlbedo, 1.0f));
+							Image.Pixels[Pixel] = ImGui::ColorConvertFloat4ToU32(glm::vec4(
+								Lighting(Scene, IntersectionPoint, IntersectionNormal) * IntersectionAlbedo,
+								1.0f));
 						}
 						else
 						{
@@ -179,19 +186,33 @@ void HHoney::DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity Camer
 	if (!HImGui::CreateOrUpdateImage(
 			GUIWindow,
 			RenderWindow.ImageIndex,
-			static_cast<uint64_t>(Resolution.x),
-			static_cast<uint64_t>(Resolution.y)))
+			1024,//static_cast<uint64_t>(Resolution.x),
+			1024))//static_cast<uint64_t>(Resolution.y)))
 	{
 		return;
 	}
 
 	HGUIImage& Image = GUIWindow.Images[RenderWindow.ImageIndex];
-	HHoney::Render(Scene, Image, CameraEntity);
+	/*HHoney::Render(Scene, Image, CameraEntity);
 
 	if (!HImGui::UploadImage(GUIWindow, RenderWindow.ImageIndex))
 	{
 		return;
-	}
+	}*/
+
+	SIZE_T CBVSRVUAV_DescriptorSize =
+		GUIWindow.DirectXContext->Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	D3D12_CPU_DESCRIPTOR_HANDLE CBVSRVUAV_Handle =
+		GUIWindow.CBVSRVUAV_DescHeap->GetCPUDescriptorHandleForHeapStart();
+	CBVSRVUAV_Handle.ptr += (RenderWindow.ImageIndex + 1) * CBVSRVUAV_DescriptorSize;
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC SRVDescriptor{};
+	SRVDescriptor.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	SRVDescriptor.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	SRVDescriptor.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	SRVDescriptor.Texture2D.MipLevels = 1;
+	GUIWindow.DirectXContext->Device->CreateShaderResourceView(RenderWindow.ComputePass.OutputResource, &SRVDescriptor, CBVSRVUAV_Handle);
+
 	std::chrono::time_point End = std::chrono::high_resolution_clock::now();
 
 	ImVec2 ScreenPosition = ImGui::GetCursorScreenPos();
@@ -208,4 +229,142 @@ void HHoney::DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity Camer
 			std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(End - Start).count(),
 			ImGui::GetIO().Framerate)
 			.c_str());
+}
+
+void HRootSignature::AddRootParameter(std::string_view Name, HRootParameterType RootParameterType)
+{
+	HRootParameter& RootParameter = RootParameters.emplace_back();
+	RootParameter.Name = Name;
+	RootParameter.RootParameterType = RootParameterType;
+	switch (RootParameter.RootParameterType)
+	{
+		case HRootParameterType::UAV:
+		{
+			RootParameter.ShaderRegister = UAVRegisterCount;
+			UAVRegisterCount++;
+			RootParameter.DescriptorRangeOffset = DescriptorRanges.size();
+			CD3DX12_DESCRIPTOR_RANGE& DescriptorRange = DescriptorRanges.emplace_back();
+			DescriptorRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, RootParameter.ShaderRegister);
+		}
+		break;
+		case HRootParameterType::Unknown:
+		default:
+			break;
+	}
+}
+
+bool HRootSignature::Build(HGUIWindow& GUIWindow)
+{
+	std::vector<CD3DX12_ROOT_PARAMETER> D3DRootParameters{};
+	for (HRootParameter& RootParameter : RootParameters)
+	{
+		CD3DX12_ROOT_PARAMETER& D3DRootParameter = D3DRootParameters.emplace_back();
+
+		switch (RootParameter.RootParameterType)
+		{
+			case HRootParameterType::UAV:
+			{
+				D3DRootParameter.InitAsDescriptorTable(
+					1,
+					DescriptorRanges.data() + RootParameter.DescriptorRangeOffset);
+			}
+			break;
+			case HRootParameterType::Unknown:
+			default:
+				break;
+		}
+	}
+
+	CD3DX12_ROOT_SIGNATURE_DESC RootSignatureDesc;
+
+	RootSignatureDesc.Init(
+		D3DRootParameters.size(),
+		D3DRootParameters.data(),
+		0,
+		nullptr,
+		D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
+
+	if (!HDirectX::CreateRootSignature(RootSiganature, RootSignatureDesc, GUIWindow.DirectXContext->Device))
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
+{
+	if (!HDirectX::CreateCommandQueue(
+			&ComputePass.CommandQueue,
+			GUIWindow.DirectXContext->Device,
+			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
+	{
+		return false;
+	}
+
+	if (!HDirectX::CreateCommandAllocator(
+			&ComputePass.CommandAllocator,
+			GUIWindow.DirectXContext->Device,
+			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
+	{
+		return false;
+	}
+
+	if (!HDirectX::CreateCommandList(
+			&ComputePass.CommandList,
+			ComputePass.CommandAllocator,
+			GUIWindow.DirectXContext->Device,
+			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
+	{
+		return false;
+	}
+
+	if (!HDirectX::CreateCBVSRVUAVHeap(&ComputePass.CBVSRVUAVDescHeap, GUIWindow.DirectXContext->Device, 1))
+	{
+		return false;
+	}
+
+	if (!HDirectX::CreateUnorderedTextureResource(&ComputePass.OutputResource, GUIWindow.DirectXContext->Device))
+	{
+		return false;
+	}
+
+	ComputePass.RootSignature.AddRootParameter("Output", HRootParameterType::UAV);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE UAVHandle(ComputePass.CBVSRVUAVDescHeap->GetCPUDescriptorHandleForHeapStart());
+
+	// Create a UAV for a resource
+	D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc{};
+	UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+	UAVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	UAVDesc.Texture2D.MipSlice = 0;
+	UAVDesc.Texture2D.PlaneSlice = 0;
+
+	GUIWindow.DirectXContext->Device->CreateUnorderedAccessView(ComputePass.OutputResource, nullptr, &UAVDesc, UAVHandle);
+
+	ComputePass.RootSignature.Build(GUIWindow);
+
+	if (!HDirectX::CreateComputePipelineState(
+			ComputePass.PipelineState,
+			ComputePass.RootSignature.RootSiganature.Get(),
+			GUIWindow.DirectXContext->Device))
+	{
+		return false;
+	}
+
+	ComputePass.CommandAllocator->Reset();
+	ComputePass.CommandList->Reset(ComputePass.CommandAllocator, nullptr);
+
+	ComputePass.CommandList->SetDescriptorHeaps(1, &ComputePass.CBVSRVUAVDescHeap);
+	ComputePass.CommandList->SetComputeRootSignature(ComputePass.RootSignature.RootSiganature.Get());
+	ComputePass.CommandList->SetComputeRootDescriptorTable(0, ComputePass.CBVSRVUAVDescHeap->GetGPUDescriptorHandleForHeapStart());
+	ComputePass.CommandList->SetPipelineState(ComputePass.PipelineState.Get());
+
+	ComputePass.CommandList->Dispatch(1024, 1024, 1);
+
+	ComputePass.CommandList->Close();
+
+	std::vector<ID3D12CommandList*> CommandLists;
+	CommandLists.push_back(ComputePass.CommandList);
+	ComputePass.CommandQueue->ExecuteCommandLists(CommandLists.size(), CommandLists.data());
+	return true;
 }

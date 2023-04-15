@@ -5,6 +5,7 @@
 #ifdef _WIN32
 
 #include <d3d12.h>
+#include <d3dx12.h>
 #include <dxgi1_4.h>
 
 #ifdef _DEBUG
@@ -88,6 +89,18 @@ namespace HDirectX
 		ID3D12CommandAllocator* CommandAllocator,
 		ID3D12Device* Device,
 		D3D12_COMMAND_LIST_TYPE Type);
+
+	bool CreateRootSignature(
+		Microsoft::WRL::ComPtr<ID3D12RootSignature>& RootSiganature,
+		CD3DX12_ROOT_SIGNATURE_DESC& RootSignatureDesc,
+		ID3D12Device* Device);
+	bool CreateComputePipelineState(
+		Microsoft::WRL::ComPtr<ID3D12PipelineState>& PipelineState,
+		ID3D12RootSignature* RootSiganature,
+		ID3D12Device* Device);
+
+	bool CreateUnorderedTextureResource(ID3D12Resource** Resource, ID3D12Device* Device);
+
 	bool CreateFence(HFence& Fence, ID3D12Device* Device);
 	bool CreateSwapChain(
 		HSwapChain& SwapChain,
