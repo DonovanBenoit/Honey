@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cinttypes>
 
 #ifdef _WIN32
@@ -100,6 +101,18 @@ namespace HDirectX
 		ID3D12Device* Device);
 
 	bool CreateUnorderedTextureResource(ID3D12Resource** Resource, ID3D12Device* Device);
+	bool CreateUnorderedBufferResource(
+		ID3D12Resource** Resource,
+		ID3D12Device* Device,
+		size_t ElementSize,
+		size_t ElementCount);
+
+	void CopyDataToResource(
+		ID3D12Resource* Resource,
+		ID3D12Device* Device,
+		ID3D12GraphicsCommandList* CommandList,
+		void* Data,
+		size_t Size);
 
 	bool CreateFence(HFence& Fence, ID3D12Device* Device);
 	bool CreateSwapChain(
@@ -110,6 +123,12 @@ namespace HDirectX
 		ID3D12Device* Device);
 	bool SignalFence(ID3D12CommandQueue* CommandQueue, HFence& Fence, UINT64& FenceValue);
 	void WaitForFence(HFence& Fence, UINT64& FenceValue);
+
+	template<size_t Count>
+	void ExecuteCommandLists(ID3D12CommandQueue* CommandQueue, const std::array<ID3D12CommandList*, Count> CommandLists)
+	{
+		CommandQueue->ExecuteCommandLists(Count, CommandLists.data());
+	}
 }; // namespace HDirectX
 
 #endif // _WIN32

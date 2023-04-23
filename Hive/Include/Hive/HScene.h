@@ -21,8 +21,9 @@ struct HSphere
 struct HMesh
 {
 	std::vector<glm::vec3> Positions;
-	std::vector<glm::vec3> Normals;
-	std::vector<glm::vec2> UVs;
+
+	// 3 * TriangleCount in size
+	std::vector<uint32_t> Indicies;
 };
 
 struct HRenderedSphere
@@ -85,4 +86,4 @@ namespace HHoney
 	void DefaultScene(HScene& Scene);
 
 	void UpdateScene(HScene& Scene, entt::entity CameraEntity);
-}
+} // namespace HHoney

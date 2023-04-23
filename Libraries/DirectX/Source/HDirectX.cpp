@@ -1,5 +1,13 @@
 #include "HDirectX.h"
 
+namespace
+{
+	size_t AlignedSize(size_t Size, size_t ALignment)
+	{
+		return ((Size + ALignment - 1) / ALignment) * ALignment;
+	}
+} // namespace
+
 bool HDirectX::CreateDeviceD3D(ID3D12Device** Device, HWND HWND)
 {
 
@@ -190,7 +198,7 @@ bool HDirectX::CreateComputePipelineState(
 	Desc.CS = ComputeShaderBytecode;
 
 	Result = Device->CreateComputePipelineState(&Desc, IID_PPV_ARGS(&PipelineState));
-	
+
 	return Result == S_OK;
 }
 
@@ -215,11 +223,77 @@ bool HDirectX::CreateUnorderedTextureResource(ID3D12Resource** Resource, ID3D12D
 		&DefaultHeapProperties,
 		D3D12_HEAP_FLAG_NONE,
 		&TextureDesc,
-		D3D12_RESOURCE_STATE_COMMON,
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 		nullptr,
 		IID_PPV_ARGS(Resource));
 
 	return SUCCEEDED(Result);
+}
+
+bool HDirectX::CreateUnorderedBufferResource(
+	ID3D12Resource** Resource,
+	ID3D12Device* Device,
+	size_t ElementSize,
+	size_t ElementCount)
+{
+	CD3DX12_HEAP_PROPERTIES DefaultHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
+	D3D12_RESOURCE_DESC ResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(
+		AlignedSize(ElementSize, 4) * ElementCount,
+		D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+	HRESULT Result = Device->CreateCommittedResource(
+		&DefaultHeapProperties,
+		D3D12_HEAP_FLAG_NONE,
+		&ResourceDesc,
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		nullptr,
+		IID_PPV_ARGS(Resource));
+	return SUCCEEDED(Result);
+}
+
+void HDirectX::CopyDataToResource(
+	ID3D12Resource* Resource,
+	ID3D12Device* Device,
+	ID3D12GraphicsCommandList* CommandList,
+	void* Data,
+	size_t Size)
+{
+	ID3D12Resource* UploadHeap = nullptr;
+	D3D12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+	D3D12_RESOURCE_DESC ResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(Size);
+	HRESULT Result = Device->CreateCommittedResource(
+		&HeapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&ResourceDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&UploadHeap));
+	if (FAILED(Result))
+	{
+		return;
+	}
+
+	// Copy the data to the upload heap
+	void* MappedData;
+	UploadHeap->Map(0, nullptr, &MappedData);
+	memcpy(MappedData, Data, Size);
+	UploadHeap->Unmap(0, nullptr);
+
+	// Transition the resource to the appropriate state for Copy
+	D3D12_RESOURCE_BARRIER StartBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+		Resource,
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_COPY_DEST);
+	CommandList->ResourceBarrier(1, &StartBarrier);
+
+	// Copy the data to the resource
+	CommandList->CopyBufferRegion(Resource, 0, UploadHeap, 0, Size);
+
+	// Transition the resource to the appropriate state for use
+	D3D12_RESOURCE_BARRIER EndBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+		Resource,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+	CommandList->ResourceBarrier(1, &EndBarrier);
 }
 
 bool HDirectX::CreateFence(HFence& Fence, ID3D12Device* Device)

@@ -186,8 +186,8 @@ void HHoney::DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity Camer
 	if (!HImGui::CreateOrUpdateImage(
 			GUIWindow,
 			RenderWindow.ImageIndex,
-			1024,//static_cast<uint64_t>(Resolution.x),
-			1024))//static_cast<uint64_t>(Resolution.y)))
+			1024,  // static_cast<uint64_t>(Resolution.x),
+			1024)) // static_cast<uint64_t>(Resolution.y)))
 	{
 		return;
 	}
@@ -202,8 +202,7 @@ void HHoney::DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity Camer
 
 	SIZE_T CBVSRVUAV_DescriptorSize =
 		GUIWindow.DirectXContext->Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	D3D12_CPU_DESCRIPTOR_HANDLE CBVSRVUAV_Handle =
-		GUIWindow.CBVSRVUAV_DescHeap->GetCPUDescriptorHandleForHeapStart();
+	D3D12_CPU_DESCRIPTOR_HANDLE CBVSRVUAV_Handle = GUIWindow.CBVSRVUAV_DescHeap->GetCPUDescriptorHandleForHeapStart();
 	CBVSRVUAV_Handle.ptr += (RenderWindow.ImageIndex + 1) * CBVSRVUAV_DescriptorSize;
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC SRVDescriptor{};
@@ -211,7 +210,10 @@ void HHoney::DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity Camer
 	SRVDescriptor.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	SRVDescriptor.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	SRVDescriptor.Texture2D.MipLevels = 1;
-	GUIWindow.DirectXContext->Device->CreateShaderResourceView(RenderWindow.ComputePass.OutputResource, &SRVDescriptor, CBVSRVUAV_Handle);
+	GUIWindow.DirectXContext->Device->CreateShaderResourceView(
+		RenderWindow.ComputePass.OutputResource,
+		&SRVDescriptor,
+		CBVSRVUAV_Handle);
 
 	std::chrono::time_point End = std::chrono::high_resolution_clock::now();
 
@@ -319,7 +321,12 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 		return false;
 	}
 
-	if (!HDirectX::CreateCBVSRVUAVHeap(&ComputePass.CBVSRVUAVDescHeap, GUIWindow.DirectXContext->Device, 1))
+	if (!HDirectX::CreateFence(ComputePass.Fence, GUIWindow.DirectXContext->Device))
+	{
+		return false;
+	}
+
+	if (!ComputePass.CBVSRVUAVDescriptorHeap.Create(GUIWindow.DirectXContext->Device))
 	{
 		return false;
 	}
@@ -329,17 +336,55 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 		return false;
 	}
 
+	// Spheres
+	{
+		uint64_t SphereCount = 1024;
+		ComputePass.SpheresData.resize(SphereCount);
+		for (uint64_t i = 0; i < SphereCount; i++)
+		{
+			ComputePass.SpheresData[i] = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+		}
+		if (!HDirectX::CreateUnorderedBufferResource(
+				&ComputePass.SpheresResource,
+				GUIWindow.DirectXContext->Device,
+				sizeof(glm::vec4),
+				SphereCount))
+		{
+			return false;
+		}
+		ComputePass.CommandAllocator->Reset();
+		ComputePass.CommandList->Reset(ComputePass.CommandAllocator, nullptr);
+		HDirectX::CopyDataToResource(
+			ComputePass.SpheresResource,
+			GUIWindow.DirectXContext->Device,
+			ComputePass.CommandList,
+			ComputePass.SpheresData.data(),
+			sizeof(glm::vec4) * SphereCount);
+		ComputePass.CommandList->Close();
+
+		HDirectX::ExecuteCommandLists<1>(ComputePass.CommandQueue, { ComputePass.CommandList });
+		ComputePass.FenceValue++;
+		HDirectX::SignalFence(ComputePass.CommandQueue, ComputePass.Fence, ComputePass.FenceValue);
+		HDirectX::WaitForFence(ComputePass.Fence, ComputePass.FenceValue);
+	}
+
 	ComputePass.RootSignature.AddRootParameter("Output", HRootParameterType::UAV);
-	CD3DX12_CPU_DESCRIPTOR_HANDLE UAVHandle(ComputePass.CBVSRVUAVDescHeap->GetCPUDescriptorHandleForHeapStart());
+	ComputePass.RootSignature.AddRootParameter("Spheres", HRootParameterType::UAV);
 
-	// Create a UAV for a resource
-	D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc{};
-	UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-	UAVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	UAVDesc.Texture2D.MipSlice = 0;
-	UAVDesc.Texture2D.PlaneSlice = 0;
-
-	GUIWindow.DirectXContext->Device->CreateUnorderedAccessView(ComputePass.OutputResource, nullptr, &UAVDesc, UAVHandle);
+	if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
+		ComputePass.OutputHeapIndex,
+		ComputePass.OutputResource,
+		GUIWindow.DirectXContext->Device))
+	{
+		return false;
+	}
+	if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
+		ComputePass.SpheresHeapIndex,
+		ComputePass.SpheresResource,
+		GUIWindow.DirectXContext->Device))
+	{
+		return false;
+	}
 
 	ComputePass.RootSignature.Build(GUIWindow);
 
@@ -354,17 +399,25 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	ComputePass.CommandAllocator->Reset();
 	ComputePass.CommandList->Reset(ComputePass.CommandAllocator, nullptr);
 
-	ComputePass.CommandList->SetDescriptorHeaps(1, &ComputePass.CBVSRVUAVDescHeap);
+	ComputePass.CommandList->SetDescriptorHeaps(1, &ComputePass.CBVSRVUAVDescriptorHeap.DescriptorHeap);
 	ComputePass.CommandList->SetComputeRootSignature(ComputePass.RootSignature.RootSiganature.Get());
-	ComputePass.CommandList->SetComputeRootDescriptorTable(0, ComputePass.CBVSRVUAVDescHeap->GetGPUDescriptorHandleForHeapStart());
+	ComputePass.CommandList->SetComputeRootDescriptorTable(
+		0,
+		ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.OutputHeapIndex));
+	ComputePass.CommandList->SetComputeRootDescriptorTable(
+		1,
+		ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SpheresHeapIndex));
 	ComputePass.CommandList->SetPipelineState(ComputePass.PipelineState.Get());
 
 	ComputePass.CommandList->Dispatch(1024, 1024, 1);
 
 	ComputePass.CommandList->Close();
 
-	std::vector<ID3D12CommandList*> CommandLists;
-	CommandLists.push_back(ComputePass.CommandList);
-	ComputePass.CommandQueue->ExecuteCommandLists(CommandLists.size(), CommandLists.data());
+	HDirectX::ExecuteCommandLists<1>(ComputePass.CommandQueue, { ComputePass.CommandList });
+
+	ComputePass.FenceValue++;
+	HDirectX::SignalFence(ComputePass.CommandQueue, ComputePass.Fence, ComputePass.FenceValue);
+	HDirectX::WaitForFence(ComputePass.Fence, ComputePass.FenceValue);
+
 	return true;
 }
