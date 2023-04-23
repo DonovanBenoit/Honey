@@ -166,4 +166,5 @@ namespace HHoney
 	void DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity CameraEntity, HRenderWindow& RenderWindow);
 
 	bool CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass);
+	bool RenderComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass, HScene& Scene);
 } // namespace HHoney

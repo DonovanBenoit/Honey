@@ -192,6 +192,8 @@ void HHoney::DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity Camer
 		return;
 	}
 
+	RenderComputePass(GUIWindow, RenderWindow.ComputePass, Scene);
+
 	HGUIImage& Image = GUIWindow.Images[RenderWindow.ImageIndex];
 	/*HHoney::Render(Scene, Image, CameraEntity);
 
@@ -297,26 +299,26 @@ bool HRootSignature::Build(HGUIWindow& GUIWindow)
 bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 {
 	if (!HDirectX::CreateCommandQueue(
-			&ComputePass.CommandQueue,
-			GUIWindow.DirectXContext->Device,
-			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
+		&ComputePass.CommandQueue,
+		GUIWindow.DirectXContext->Device,
+		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
 	{
 		return false;
 	}
 
 	if (!HDirectX::CreateCommandAllocator(
-			&ComputePass.CommandAllocator,
-			GUIWindow.DirectXContext->Device,
-			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
+		&ComputePass.CommandAllocator,
+		GUIWindow.DirectXContext->Device,
+		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
 	{
 		return false;
 	}
 
 	if (!HDirectX::CreateCommandList(
-			&ComputePass.CommandList,
-			ComputePass.CommandAllocator,
-			GUIWindow.DirectXContext->Device,
-			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
+		&ComputePass.CommandList,
+		ComputePass.CommandAllocator,
+		GUIWindow.DirectXContext->Device,
+		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
 	{
 		return false;
 	}
@@ -342,13 +344,13 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 		ComputePass.SpheresData.resize(SphereCount);
 		for (uint64_t i = 0; i < SphereCount; i++)
 		{
-			ComputePass.SpheresData[i] = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+			ComputePass.SpheresData[i] = glm::vec4(1.0f, 0.5f, 0.0f, 1.0f);
 		}
 		if (!HDirectX::CreateUnorderedBufferResource(
-				&ComputePass.SpheresResource,
-				GUIWindow.DirectXContext->Device,
-				sizeof(glm::vec4),
-				SphereCount))
+			&ComputePass.SpheresResource,
+			GUIWindow.DirectXContext->Device,
+			sizeof(glm::vec4),
+			SphereCount))
 		{
 			return false;
 		}
@@ -389,15 +391,37 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	ComputePass.RootSignature.Build(GUIWindow);
 
 	if (!HDirectX::CreateComputePipelineState(
-			ComputePass.PipelineState,
-			ComputePass.RootSignature.RootSiganature.Get(),
-			GUIWindow.DirectXContext->Device))
+		ComputePass.PipelineState,
+		ComputePass.RootSignature.RootSiganature.Get(),
+		GUIWindow.DirectXContext->Device))
 	{
 		return false;
+	}
+	return true;
+};
+
+bool HHoney::RenderComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass, HScene& Scene)
+{
+	uint64_t SphereIndex = 0;
+	for (HRenderedSphere& RenderedSphere : Scene.RenderedSpheres)
+	{
+		ComputePass.SpheresData[SphereIndex].x = RenderedSphere.RayOriginToSphereCenter.x;
+		ComputePass.SpheresData[SphereIndex].y = RenderedSphere.RayOriginToSphereCenter.y;
+		ComputePass.SpheresData[SphereIndex].z = RenderedSphere.RayOriginToSphereCenter.z;
+		ComputePass.SpheresData[SphereIndex].w = RenderedSphere.RadiusSquared;
+		SphereIndex++;
 	}
 
 	ComputePass.CommandAllocator->Reset();
 	ComputePass.CommandList->Reset(ComputePass.CommandAllocator, nullptr);
+
+	HDirectX::CopyDataToResource(
+		ComputePass.SpheresResource,
+		GUIWindow.DirectXContext->Device,
+		ComputePass.CommandList,
+		ComputePass.SpheresData.data(),
+		sizeof(glm::vec4) * SphereIndex);
+
 
 	ComputePass.CommandList->SetDescriptorHeaps(1, &ComputePass.CBVSRVUAVDescriptorHeap.DescriptorHeap);
 	ComputePass.CommandList->SetComputeRootSignature(ComputePass.RootSignature.RootSiganature.Get());
