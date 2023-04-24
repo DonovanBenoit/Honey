@@ -58,7 +58,7 @@ struct HCBVSRVUAVDescriptorHeap
 		return true;
 	}
 
-	bool CreateOrUpdateHandle(int64_t& HeapIndex, ID3D12Resource* Resource, ID3D12Device* Device)
+	bool CreateOrUpdateHandle(int64_t& HeapIndex, ID3D12Resource* Resource, uint64_t Count, ID3D12Device* Device)
 	{
 		if (HeapIndex < 0)
 		{
@@ -86,8 +86,9 @@ struct HCBVSRVUAVDescriptorHeap
 				{
 					UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
 					UAVDesc.Format = ResourceDesc.Format;
-					UAVDesc.Buffer.NumElements = 1024;
-					UAVDesc.Buffer.StructureByteStride = sizeof(glm::vec4);
+					UAVDesc.Buffer.NumElements = Count;
+					assert(ResourceDesc.Width % Count == 0);
+					UAVDesc.Buffer.StructureByteStride = ResourceDesc.Width / Count;
 					UAVDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
 					break;
 				}
@@ -150,6 +151,12 @@ struct HComputePass
 
 	ID3D12Resource* SpheresResource = nullptr;
 	int64_t SpheresHeapIndex = -1;
+
+	ID3D12Resource* MaterialsResource = nullptr;
+	int64_t MaterialsHeapIndex = -1;
+
+	ID3D12Resource* SceneResource = nullptr;
+	int64_t SceneHeapIndex = -1;
 };
 
 struct HRenderWindow

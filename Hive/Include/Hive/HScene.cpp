@@ -76,8 +76,8 @@ void HHoney::UpdateScene(HScene& Scene, entt::entity CameraEntity)
 	const HWorldTransform& CameraTransform = Scene.Get<HWorldTransform>(CameraEntity);
 
 	uint64_t SphereIndex = 0;
-	Scene.Registry.view<HSphere, HWorldTransform>().each(
-		[&](entt::entity Entity, HSphere& Sphere, HWorldTransform& WorldTransform) {
+	Scene.Registry.view<HSphere, HMaterial, HWorldTransform>().each(
+		[&](entt::entity Entity, HSphere& Sphere, HMaterial& Material, HWorldTransform& WorldTransform) {
 			HRenderedSphere& RenderedSphere = Scene.RenderedSpheres[SphereIndex++];
 			RenderedSphere.RadiusSquared = Sphere.Radius * Sphere.Radius;
 			RenderedSphere.RayOriginToSphereCenter = WorldTransform.Translation - CameraTransform.Translation;

@@ -326,12 +326,25 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 		return false;
 	}
 
-	if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
+	// Output
+	{
+		if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
 			&ComputePass.OutputResource,
 			GUIWindow.DirectXContext->Device,
 			{ 1024, 1024 }))
-	{
-		return false;
+		{
+			return false;
+		}
+		ComputePass.RootSignature.AddRootParameter("Output", HRootParameterType::UAV);
+		if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
+			ComputePass.OutputHeapIndex,
+			ComputePass.OutputResource,
+			1,
+			GUIWindow.DirectXContext->Device))
+		{
+			return false;
+		}
+
 	}
 
 	// Spheres
@@ -340,34 +353,63 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 		if (!HDirectX::CreateUnorderedBufferResource(
 				&ComputePass.SpheresResource,
 				GUIWindow.DirectXContext->Device,
-				sizeof(glm::vec4),
+				sizeof(HRenderedSphere),
 				SphereCount))
 		{
 			return false;
 		}
-
-		HDirectX::ExecuteCommandLists<1>(ComputePass.CommandQueue, { ComputePass.CommandList });
-		ComputePass.FenceValue++;
-		HDirectX::SignalFence(ComputePass.CommandQueue, ComputePass.Fence, ComputePass.FenceValue);
-		HDirectX::WaitForFence(ComputePass.Fence, ComputePass.FenceValue);
-	}
-
-	ComputePass.RootSignature.AddRootParameter("Output", HRootParameterType::UAV);
-	ComputePass.RootSignature.AddRootParameter("Spheres", HRootParameterType::UAV);
-
-	if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
-			ComputePass.OutputHeapIndex,
-			ComputePass.OutputResource,
-			GUIWindow.DirectXContext->Device))
-	{
-		return false;
-	}
-	if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
+		ComputePass.RootSignature.AddRootParameter("Spheres", HRootParameterType::UAV);
+		if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
 			ComputePass.SpheresHeapIndex,
 			ComputePass.SpheresResource,
+			SphereCount,
 			GUIWindow.DirectXContext->Device))
+		{
+			return false;
+		}
+	}
+
+	// Materials
 	{
-		return false;
+		uint64_t MaterialCount = 1024;
+		if (!HDirectX::CreateUnorderedBufferResource(
+			&ComputePass.MaterialsResource,
+			GUIWindow.DirectXContext->Device,
+			sizeof(HMaterial),
+			MaterialCount))
+		{
+			return false;
+		}
+		ComputePass.RootSignature.AddRootParameter("Materials", HRootParameterType::UAV);
+		if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
+			ComputePass.MaterialsHeapIndex,
+			ComputePass.MaterialsResource,
+			MaterialCount,
+			GUIWindow.DirectXContext->Device))
+		{
+			return false;
+		}
+	}
+
+	// Scene
+	{
+		if (!HDirectX::CreateUnorderedBufferResource(
+			&ComputePass.SceneResource,
+			GUIWindow.DirectXContext->Device,
+			sizeof(HRenderedScene),
+			1))
+		{
+			return false;
+		}
+		ComputePass.RootSignature.AddRootParameter("Scene", HRootParameterType::UAV);
+		if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
+			ComputePass.SceneHeapIndex,
+			ComputePass.SceneResource,
+			1,
+			GUIWindow.DirectXContext->Device))
+		{
+			return false;
+		}
 	}
 
 	ComputePass.RootSignature.Build(GUIWindow);
@@ -398,6 +440,7 @@ bool HHoney::RenderComputePass(
 	if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
 			ComputePass.OutputHeapIndex,
 			ComputePass.OutputResource,
+			1,
 			GUIWindow.DirectXContext->Device))
 	{
 		return false;
@@ -406,13 +449,22 @@ bool HHoney::RenderComputePass(
 	ComputePass.CommandAllocator->Reset();
 	ComputePass.CommandList->Reset(ComputePass.CommandAllocator, nullptr);
 
-	uint64_t RenderSphersDataSize = Scene.RenderedSpheres.size() * sizeof(glm::vec4);
+	uint64_t RenderSphersDataSize = Scene.RenderedSpheres.size() * sizeof(HRenderedSphere);
 	HDirectX::CopyDataToResource(
 		ComputePass.SpheresResource,
 		GUIWindow.DirectXContext->Device,
 		ComputePass.CommandList,
 		Scene.RenderedSpheres.data(),
 		RenderSphersDataSize);
+
+	HRenderedScene RenderedScene{};
+	RenderedScene.SphereCount = Scene.RenderedSpheres.size();
+	HDirectX::CopyDataToResource(
+		ComputePass.SceneResource,
+		GUIWindow.DirectXContext->Device,
+		ComputePass.CommandList,
+		&RenderedScene,
+		sizeof(HRenderedScene));
 
 	ComputePass.CommandList->SetDescriptorHeaps(1, &ComputePass.CBVSRVUAVDescriptorHeap.DescriptorHeap);
 	ComputePass.CommandList->SetComputeRootSignature(ComputePass.RootSignature.RootSiganature.Get());
@@ -422,6 +474,12 @@ bool HHoney::RenderComputePass(
 	ComputePass.CommandList->SetComputeRootDescriptorTable(
 		1,
 		ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SpheresHeapIndex));
+	ComputePass.CommandList->SetComputeRootDescriptorTable(
+		2,
+		ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.MaterialsHeapIndex));
+	ComputePass.CommandList->SetComputeRootDescriptorTable(
+		3,
+		ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SceneHeapIndex));
 	ComputePass.CommandList->SetPipelineState(ComputePass.PipelineState.Get());
 
 	ComputePass.CommandList->Dispatch(Resolution.x, Resolution.y, 1);

@@ -30,6 +30,14 @@ struct HRenderedSphere
 {
 	glm::vec3 RayOriginToSphereCenter = {};
 	float RadiusSquared = 0.25f;
+	uint32_t MaterialIndex = 0;
+};
+static_assert(sizeof(HRenderedSphere) % 4 == 0);
+
+struct HRenderedScene
+{
+	glm::vec3 RayOrigin{};
+	uint32_t SphereCount = 0;
 };
 
 struct HMaterial
