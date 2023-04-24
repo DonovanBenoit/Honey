@@ -202,13 +202,28 @@ bool HDirectX::CreateComputePipelineState(
 	return Result == S_OK;
 }
 
-bool HDirectX::CreateUnorderedTextureResource(ID3D12Resource** Resource, ID3D12Device* Device)
+bool HDirectX::CreateOrUpdateUnorderedTextureResource(
+	ID3D12Resource** Resource,
+	ID3D12Device* Device,
+	const glm::uvec2& Resolution)
 {
+	if (*Resource != nullptr)
+	{
+		D3D12_RESOURCE_DESC TextureDesc = (*Resource)->GetDesc();
+		if (TextureDesc.Width == Resolution.x && TextureDesc.Height == Resolution.y)
+		{
+			return true;
+		}
+
+		ULONG Count = (*Resource)->Release();
+		(*Resource) = nullptr;
+	}
+
 	D3D12_RESOURCE_DESC TextureDesc = {};
 	TextureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	TextureDesc.Alignment = 0;
-	TextureDesc.Width = 1024;
-	TextureDesc.Height = 1024;
+	TextureDesc.Width = Resolution.x;
+	TextureDesc.Height = Resolution.y;
 	TextureDesc.DepthOrArraySize = 1;
 	TextureDesc.MipLevels = 1;
 	TextureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;

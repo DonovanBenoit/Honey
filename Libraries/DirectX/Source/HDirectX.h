@@ -3,6 +3,8 @@
 #include <array>
 #include <cinttypes>
 
+#include <glm/glm.hpp>
+
 #ifdef _WIN32
 
 #include <d3d12.h>
@@ -100,7 +102,7 @@ namespace HDirectX
 		ID3D12RootSignature* RootSiganature,
 		ID3D12Device* Device);
 
-	bool CreateUnorderedTextureResource(ID3D12Resource** Resource, ID3D12Device* Device);
+	bool CreateOrUpdateUnorderedTextureResource(ID3D12Resource** Resource, ID3D12Device* Device, const glm::uvec2& Resolution);
 	bool CreateUnorderedBufferResource(
 		ID3D12Resource** Resource,
 		ID3D12Device* Device,

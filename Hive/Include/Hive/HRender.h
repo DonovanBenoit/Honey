@@ -149,7 +149,6 @@ struct HComputePass
 	int64_t OutputHeapIndex = -1;
 
 	ID3D12Resource* SpheresResource = nullptr;
-	std::vector<glm::vec4> SpheresData;
 	int64_t SpheresHeapIndex = -1;
 };
 
@@ -166,5 +165,5 @@ namespace HHoney
 	void DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity CameraEntity, HRenderWindow& RenderWindow);
 
 	bool CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass);
-	bool RenderComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass, HScene& Scene);
+	bool RenderComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass, HScene& Scene, const glm::vec2& Resolution);
 } // namespace HHoney

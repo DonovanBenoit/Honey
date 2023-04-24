@@ -28,9 +28,8 @@ struct HMesh
 
 struct HRenderedSphere
 {
-	float RadiusSquared = 0.25f;
 	glm::vec3 RayOriginToSphereCenter = {};
-	entt::entity SphereEntity = entt::null;
+	float RadiusSquared = 0.25f;
 };
 
 struct HMaterial

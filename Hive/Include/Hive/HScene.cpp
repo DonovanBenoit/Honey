@@ -81,6 +81,5 @@ void HHoney::UpdateScene(HScene& Scene, entt::entity CameraEntity)
 			HRenderedSphere& RenderedSphere = Scene.RenderedSpheres[SphereIndex++];
 			RenderedSphere.RadiusSquared = Sphere.Radius * Sphere.Radius;
 			RenderedSphere.RayOriginToSphereCenter = WorldTransform.Translation - CameraTransform.Translation;
-			RenderedSphere.SphereEntity = Entity;
 		});
 }
