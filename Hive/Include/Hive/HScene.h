@@ -86,6 +86,8 @@ struct HScene
 	}
 
 	std::vector<HRenderedSphere> RenderedSpheres{};
+
+	std::vector<HMaterial> RenderedMaterials{};
 };
 
 namespace HHoney

@@ -457,6 +457,14 @@ bool HHoney::RenderComputePass(
 		Scene.RenderedSpheres.data(),
 		RenderSphersDataSize);
 
+	uint64_t RenderedMaterialsDataSize = Scene.RenderedMaterials.size() * sizeof(HMaterial);
+	HDirectX::CopyDataToResource(
+		ComputePass.MaterialsResource,
+		GUIWindow.DirectXContext->Device,
+		ComputePass.CommandList,
+		Scene.RenderedMaterials.data(),
+		RenderedMaterialsDataSize);
+
 	HRenderedScene RenderedScene{};
 	RenderedScene.SphereCount = Scene.RenderedSpheres.size();
 	HDirectX::CopyDataToResource(
