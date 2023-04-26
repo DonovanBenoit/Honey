@@ -1,5 +1,7 @@
 #pragma once
 
+#include <future>
+
 #include <entt/entt.hpp>
 #include <glm/glm.hpp>
 
@@ -146,6 +148,8 @@ struct HComputePass
 
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> PipelineState = nullptr;
 
+	glm::vec2 Resolution{};
+
 	ID3D12Resource* OutputResource = nullptr;
 	int64_t OutputHeapIndex = -1;
 
@@ -157,6 +161,8 @@ struct HComputePass
 
 	ID3D12Resource* SceneResource = nullptr;
 	int64_t SceneHeapIndex = -1;
+
+	std::future<bool> RenderFuture{};
 };
 
 struct HRenderWindow
