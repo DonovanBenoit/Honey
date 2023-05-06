@@ -19,12 +19,46 @@ void HHoney::DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity Camer
 
 	ImVec2 Resolution = ImGui::GetContentRegionAvail();
 	if (!HImGui::CreateOrUpdateImage(
-			GUIWindow,
-			RenderWindow.ImageIndex,
-			static_cast<uint64_t>(Resolution.x),
-			static_cast<uint64_t>(Resolution.y)))
+		GUIWindow,
+		RenderWindow.ImageIndex,
+		static_cast<uint64_t>(Resolution.x),
+		static_cast<uint64_t>(Resolution.y)))
 	{
 		return;
+	}
+
+	const ImGuiIO& IO = ImGui::GetIO();
+
+
+	float CameraSpeed = 1.0f;
+	if (IO.KeyShift)
+	{
+		CameraSpeed *= 10.0f;
+	}
+	HRelativeTransform& CameraTransform = Scene.Get<HRelativeTransform>(CameraEntity);
+	if (IO.KeysDown['W'])
+	{
+		CameraTransform.Translation.z += CameraSpeed * IO.DeltaTime;
+	}
+	if (IO.KeysDown['S'])
+	{
+		CameraTransform.Translation.z -= CameraSpeed * IO.DeltaTime;
+	}
+	if (IO.KeysDown['D'])
+	{
+		CameraTransform.Translation.x += CameraSpeed * IO.DeltaTime;
+	}
+	if (IO.KeysDown['A'])
+	{
+		CameraTransform.Translation.x -= CameraSpeed * IO.DeltaTime;
+	}
+	if (IO.KeysDown['Q'])
+	{
+		CameraTransform.Translation.y += CameraSpeed * IO.DeltaTime;
+	}
+	if (IO.KeysDown['E'])
+	{
+		CameraTransform.Translation.y -= CameraSpeed * IO.DeltaTime;
 	}
 
 	RenderComputePass(GUIWindow, RenderWindow.ComputePass, Scene, CameraEntity, Resolution);
