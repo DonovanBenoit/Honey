@@ -1,8 +1,8 @@
 #pragma once
 
-#include <future>
-
+#include <atomic>
 #include <entt/entt.hpp>
+#include <future>
 #include <glm/glm.hpp>
 
 #ifdef _WIN32
@@ -142,6 +142,8 @@ struct HComputePass
 	HFence Fence{};
 	uint64_t FenceValue = 0;
 
+	std::atomic<bool> TriggerShaderRebuild = false;
+
 	HCBVSRVUAVDescriptorHeap<16384> CBVSRVUAVDescriptorHeap;
 
 	HRootSignature RootSignature;
@@ -173,10 +175,15 @@ struct HRenderWindow
 
 namespace HHoney
 {
-	void Render(HScene& Scene, HGUIImage& Image, entt::entity CameraEntity);
-
 	void DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity CameraEntity, HRenderWindow& RenderWindow);
 
 	bool CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass);
-	bool RenderComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass, HScene& Scene, const glm::vec2& Resolution);
+	bool RenderComputePass(
+		HGUIWindow& GUIWindow,
+		HComputePass& ComputePass,
+		HScene& Scene,
+		entt::entity CameraEntity,
+		const glm::vec2& Resolution);
+
+	void ControlsWindow(HGUIWindow& GUIWindow, HScene& Scene, entt::entity CameraEntity, HRenderWindow& RenderWindow);
 } // namespace HHoney

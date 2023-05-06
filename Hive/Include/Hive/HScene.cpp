@@ -82,7 +82,8 @@ void HHoney::UpdateScene(HScene& Scene, entt::entity CameraEntity)
 		[&](entt::entity Entity, HSphere& Sphere, HMaterial& Material, HWorldTransform& WorldTransform) {
 			HRenderedSphere& RenderedSphere = Scene.RenderedSpheres[SphereIndex++];
 			RenderedSphere.RadiusSquared = Sphere.Radius * Sphere.Radius;
-			RenderedSphere.RayOriginToSphereCenter = WorldTransform.Translation - CameraTransform.Translation;
+			RenderedSphere.SphereCenter = glm::vec4(WorldTransform.Translation, 0.0f);
+			RenderedSphere.RayOriginToSphereCenter = glm::vec4(WorldTransform.Translation - CameraTransform.Translation, 0.0f);
 			RenderedSphere.MaterialIndex = MaterialIndex;
 			Scene.RenderedMaterials[MaterialIndex++] = Material;
 		});

@@ -28,7 +28,8 @@ struct HMesh
 
 struct HRenderedSphere
 {
-	glm::vec3 RayOriginToSphereCenter = {};
+	glm::vec4 SphereCenter = {};
+	glm::vec4 RayOriginToSphereCenter = {};
 	float RadiusSquared = 0.25f;
 	uint32_t MaterialIndex = 0;
 };
@@ -36,7 +37,7 @@ static_assert(sizeof(HRenderedSphere) % 4 == 0);
 
 struct HRenderedScene
 {
-	glm::vec3 RayOrigin{};
+	glm::vec3 RayOrigin = { 0.0f, 0.0f, -1.0f };
 	uint32_t SphereCount = 0;
 };
 
