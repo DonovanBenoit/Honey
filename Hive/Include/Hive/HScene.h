@@ -35,10 +35,22 @@ struct HRenderedSphere
 };
 static_assert(sizeof(HRenderedSphere) % 4 == 0);
 
+enum class HSDFShape
+{
+	Sphere
+};
+
+struct HSDF
+{
+	glm::vec3 Position = { 0.0f, 0.0f, 0.0f };
+	float Radius;
+};
+
 struct HRenderedScene
 {
 	glm::vec3 RayOrigin = { 0.0f, 0.0f, -1.0f };
 	uint32_t SphereCount = 0;
+	uint32_t SDFCount = 0;
 };
 
 struct HMaterial
@@ -78,6 +90,7 @@ struct HScene
 
 	entt::entity CreateCamera();
 	entt::entity CreateSphere();
+	entt::entity CreateSDF();
 	entt::entity CreatePointLight();
 
 	template<typename T>
@@ -85,6 +98,8 @@ struct HScene
 	{
 		return Registry.get<T>(Entity);
 	}
+
+	std::vector<HSDF> SDFs{};
 
 	std::vector<HRenderedSphere> RenderedSpheres{};
 

@@ -164,6 +164,9 @@ struct HComputePass
 	ID3D12Resource* SceneResource = nullptr;
 	int64_t SceneHeapIndex = -1;
 
+	ID3D12Resource* SDFsResource = nullptr;
+	int64_t SDFsHeapIndex = -1;
+
 	std::future<bool> RenderFuture{};
 };
 

@@ -24,6 +24,18 @@ entt::entity HScene::CreateSphere()
 	return SphereEntity;
 }
 
+entt::entity HScene::CreateSDF()
+{
+	entt::entity SDFEntity = Spheres.emplace_back(Registry.create());
+	HSDF& SDF = Registry.emplace<HSDF>(SDFEntity);
+	HWorldTransform& WorldTransform = Registry.emplace<HWorldTransform>(SDFEntity);
+	HRelativeTransform& RelativeTransform = Registry.emplace<HRelativeTransform>(SDFEntity);
+	HMaterial& Material = Registry.emplace<HMaterial>(SDFEntity);
+	SDFs.emplace_back();
+	RenderedMaterials.emplace_back();
+	return SDFEntity;
+}
+
 entt::entity HScene::CreatePointLight()
 {
 	entt::entity PointLightEntity = PointLights.emplace_back(Registry.create());
@@ -60,6 +72,20 @@ void HHoney::DefaultScene(HScene& Scene)
 
 		Material.Albedo = glm::abs(glm::sphericalRand(1.0f));
 	}
+
+	int32_t SDFCount = 128;
+	for (int32_t SDFIndex = 0; SDFIndex < SDFCount; SDFIndex++)
+	{
+		entt::entity SDFEntity = Scene.CreateSDF();
+		HMaterial& Material = Scene.Get<HMaterial>(SDFEntity);
+		HRelativeTransform& RelativeTransform = Scene.Get<HRelativeTransform>(SDFEntity);
+		HSDF& SDF = Scene.Get<HSDF>(SDFEntity);
+
+		SDF.Radius = glm::linearRand(0.2f, 2.0f);
+		RelativeTransform.Translation = glm::sphericalRand(1.0f) * glm::linearRand(0.1f, 10.0f);
+
+		Material.Albedo = glm::abs(glm::sphericalRand(1.0f));
+	}
 }
 
 void HHoney::UpdateScene(HScene& Scene, entt::entity CameraEntity)
@@ -86,5 +112,10 @@ void HHoney::UpdateScene(HScene& Scene, entt::entity CameraEntity)
 			RenderedSphere.RayOriginToSphereCenter = glm::vec4(WorldTransform.Translation - CameraTransform.Translation, 0.0f);
 			RenderedSphere.MaterialIndex = MaterialIndex;
 			Scene.RenderedMaterials[MaterialIndex++] = Material;
+		});
+
+	Scene.Registry.view<HSDF, HMaterial, HWorldTransform>().each(
+		[&](entt::entity Entity, HSDF& SDF, HMaterial& Material, HWorldTransform& WorldTransform) {
+			SDF.Position = WorldTransform.Translation;
 		});
 }

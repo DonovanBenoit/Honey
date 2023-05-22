@@ -283,6 +283,28 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 		}
 	}
 
+	// SDFs
+	{
+		uint64_t SDFCount = 1024;
+		if (!HDirectX::CreateUnorderedBufferResource(
+			&ComputePass.SDFsResource,
+			GUIWindow.DirectXContext->Device,
+			sizeof(HSDF),
+			SDFCount))
+		{
+			return false;
+		}
+		ComputePass.RootSignature.AddRootParameter("SDFs", HRootParameterType::UAV);
+		if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
+			ComputePass.SDFsHeapIndex,
+			ComputePass.SDFsResource,
+			SDFCount,
+			GUIWindow.DirectXContext->Device))
+		{
+			return false;
+		}
+	}
+
 	ComputePass.RootSignature.Build(GUIWindow);
 
 	if (!HDirectX::CreateComputePipelineState(
@@ -381,6 +403,7 @@ bool HHoney::RenderComputePass(
 
 			HRenderedScene RenderedScene{};
 			RenderedScene.SphereCount = Scene.RenderedSpheres.size();
+			RenderedScene.SDFCount = Scene.SDFs.size();
 			const HWorldTransform& CameraTransform = Scene.Get<HWorldTransform>(Test);
 			RenderedScene.RayOrigin = CameraTransform.Translation;
 
@@ -390,6 +413,14 @@ bool HHoney::RenderComputePass(
 				ComputePass.CommandList,
 				&RenderedScene,
 				sizeof(HRenderedScene));
+
+			uint64_t SDFsDataSize = Scene.SDFs.size() * sizeof(HSDF);
+			HDirectX::CopyDataToResource(
+				ComputePass.SDFsResource,
+				GUIWindow.DirectXContext->Device,
+				ComputePass.CommandList,
+				Scene.SDFs.data(),
+				SDFsDataSize);
 
 			ComputePass.CommandList->SetDescriptorHeaps(1, &ComputePass.CBVSRVUAVDescriptorHeap.DescriptorHeap);
 			ComputePass.CommandList->SetComputeRootSignature(ComputePass.RootSignature.RootSiganature.Get());
@@ -405,6 +436,9 @@ bool HHoney::RenderComputePass(
 			ComputePass.CommandList->SetComputeRootDescriptorTable(
 				3,
 				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SceneHeapIndex));
+			ComputePass.CommandList->SetComputeRootDescriptorTable(
+				4,
+				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SDFsHeapIndex));
 			ComputePass.CommandList->SetPipelineState(ComputePass.PipelineState.Get());
 
 			ComputePass.CommandList->Dispatch(ComputePass.Resolution.x, ComputePass.Resolution.y, 1);

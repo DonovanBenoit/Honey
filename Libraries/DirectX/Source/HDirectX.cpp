@@ -168,7 +168,7 @@ bool HDirectX::CreateComputePipelineState(
 	Microsoft::WRL::ComPtr<ID3DBlob> ComputeShaderBlob;
 	Microsoft::WRL::ComPtr<ID3DBlob> ErrorBlob;
 	HRESULT Result = D3DCompileFromFile(
-		L"compute_shader.hlsl",
+		L"Shaders/Hive/HComputeRender.hlsl",
 		nullptr,
 		nullptr,
 		"main",

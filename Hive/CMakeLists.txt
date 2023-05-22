@@ -7,12 +7,19 @@ set(SOURCE_FILES
 	Include/Hive/HScene.h
 	Include/Hive/HScene.cpp
 	)
-	
-add_library(Hive ${SOURCE_FILES})
+
+# Shaders
+file(GLOB_RECURSE SHADER_FILES "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/Hive/*.hlsl")
+foreach(SHADER_FILE ${SHADER_FILES})
+	set_source_files_properties(${SHADER_FILE} PROPERTIES VS_TOOL_OVERRIDE "None")
+endforeach(SHADER_FILE)
+
+add_library(Hive ${SOURCE_FILES} ${SHADER_FILES})
 
 target_include_directories(Hive
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Include
 )
+
 
 add_compile_definitions(NOMINMAX)
 
