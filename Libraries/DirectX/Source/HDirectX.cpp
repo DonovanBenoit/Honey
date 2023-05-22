@@ -170,7 +170,7 @@ bool HDirectX::CreateComputePipelineState(
 	HRESULT Result = D3DCompileFromFile(
 		L"Shaders/Hive/HComputeRender.hlsl",
 		nullptr,
-		nullptr,
+		D3D_COMPILE_STANDARD_FILE_INCLUDE,
 		"main",
 		"cs_5_0",
 		0,
