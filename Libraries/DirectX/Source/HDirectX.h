@@ -2,7 +2,7 @@
 
 #include <array>
 #include <cinttypes>
-
+#include <filesystem>
 #include <glm/glm.hpp>
 
 #ifdef _WIN32
@@ -99,11 +99,17 @@ namespace HDirectX
 		ID3D12Device* Device);
 	bool CreateComputePipelineState(
 		Microsoft::WRL::ComPtr<ID3D12PipelineState>& PipelineState,
+		const std::filesystem::path& ShaderPath,
+		const std::string_view& EntryPoint,
 		ID3D12RootSignature* RootSiganature,
 		ID3D12Device* Device);
 
-	bool CreateOrUpdateUnorderedTextureResource(ID3D12Resource** Resource, ID3D12Device* Device, const glm::uvec2& Resolution);
-	bool CreateUnorderedBufferResource(
+	bool CreateOrUpdateUnorderedTextureResource(
+		ID3D12Resource** Resource,
+		ID3D12Device* Device,
+		const glm::uvec2& Resolution,
+		DXGI_FORMAT Format = DXGI_FORMAT_R8G8B8A8_UNORM);
+	bool CreateOrUpdateUnorderedBufferResource(
 		ID3D12Resource** Resource,
 		ID3D12Device* Device,
 		size_t ElementSize,

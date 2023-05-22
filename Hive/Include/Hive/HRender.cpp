@@ -19,16 +19,15 @@ void HHoney::DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity Camer
 
 	ImVec2 Resolution = ImGui::GetContentRegionAvail();
 	if (!HImGui::CreateOrUpdateImage(
-		GUIWindow,
-		RenderWindow.ImageIndex,
-		static_cast<uint64_t>(Resolution.x),
-		static_cast<uint64_t>(Resolution.y)))
+			GUIWindow,
+			RenderWindow.ImageIndex,
+			static_cast<uint64_t>(Resolution.x),
+			static_cast<uint64_t>(Resolution.y)))
 	{
 		return;
 	}
 
 	const ImGuiIO& IO = ImGui::GetIO();
-
 
 	float CameraSpeed = 1.0f;
 	if (IO.KeyShift)
@@ -221,7 +220,7 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	// Spheres
 	{
 		uint64_t SphereCount = 1024;
-		if (!HDirectX::CreateUnorderedBufferResource(
+		if (!HDirectX::CreateOrUpdateUnorderedBufferResource(
 				&ComputePass.SpheresResource,
 				GUIWindow.DirectXContext->Device,
 				sizeof(HRenderedSphere),
@@ -243,7 +242,7 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	// Materials
 	{
 		uint64_t MaterialCount = 1024;
-		if (!HDirectX::CreateUnorderedBufferResource(
+		if (!HDirectX::CreateOrUpdateUnorderedBufferResource(
 				&ComputePass.MaterialsResource,
 				GUIWindow.DirectXContext->Device,
 				sizeof(HMaterial),
@@ -264,7 +263,7 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 
 	// Scene
 	{
-		if (!HDirectX::CreateUnorderedBufferResource(
+		if (!HDirectX::CreateOrUpdateUnorderedBufferResource(
 				&ComputePass.SceneResource,
 				GUIWindow.DirectXContext->Device,
 				sizeof(HRenderedScene),
@@ -286,20 +285,61 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	// SDFs
 	{
 		uint64_t SDFCount = 1024;
-		if (!HDirectX::CreateUnorderedBufferResource(
-			&ComputePass.SDFsResource,
-			GUIWindow.DirectXContext->Device,
-			sizeof(HSDF),
-			SDFCount))
+		if (!HDirectX::CreateOrUpdateUnorderedBufferResource(
+				&ComputePass.SDFsResource,
+				GUIWindow.DirectXContext->Device,
+				sizeof(HSDF),
+				SDFCount))
 		{
 			return false;
 		}
 		ComputePass.RootSignature.AddRootParameter("SDFs", HRootParameterType::UAV);
 		if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
-			ComputePass.SDFsHeapIndex,
-			ComputePass.SDFsResource,
-			SDFCount,
-			GUIWindow.DirectXContext->Device))
+				ComputePass.SDFsHeapIndex,
+				ComputePass.SDFsResource,
+				SDFCount,
+				GUIWindow.DirectXContext->Device))
+		{
+			return false;
+		}
+	}
+
+	// Distance
+	{
+		// March
+		ComputePass.RootSignature.AddRootParameter("MarchDistance", HRootParameterType::UAV);
+		if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
+				&ComputePass.MarchDistanceResource,
+				GUIWindow.DirectXContext->Device,
+				ComputePass.Resolution,
+				DXGI_FORMAT_R32_UINT))
+		{
+			return false;
+		}
+		if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
+				ComputePass.MarchDistanceHeapIndex,
+				ComputePass.MarchDistanceResource,
+				1,
+				GUIWindow.DirectXContext->Device))
+		{
+			return false;
+		}
+
+		// Step
+		ComputePass.RootSignature.AddRootParameter("StepDistance", HRootParameterType::UAV);
+		if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
+				&ComputePass.StepDistanceResource,
+				GUIWindow.DirectXContext->Device,
+				ComputePass.Resolution,
+				DXGI_FORMAT_R32_UINT))
+		{
+			return false;
+		}
+		if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
+				ComputePass.StepDistanceHeapIndex,
+				ComputePass.StepDistanceResource,
+				1,
+				GUIWindow.DirectXContext->Device))
 		{
 			return false;
 		}
@@ -309,11 +349,54 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 
 	if (!HDirectX::CreateComputePipelineState(
 			ComputePass.PipelineState,
+			"Shaders/Hive/HComputeRender.hlsl",
+			"main",
 			ComputePass.RootSignature.RootSiganature.Get(),
 			GUIWindow.DirectXContext->Device))
 	{
 		return false;
 	}
+
+	if (!HDirectX::CreateComputePipelineState(
+			ComputePass.ClearPipelineState,
+			"Shaders/Hive/HComputeRender.hlsl",
+			"clear",
+			ComputePass.RootSignature.RootSiganature.Get(),
+			GUIWindow.DirectXContext->Device))
+	{
+		return false;
+	}
+
+	if (!HDirectX::CreateComputePipelineState(
+			ComputePass.ApplyAndClearSphereDistancePipelineState,
+			"Shaders/Hive/HComputeRender.hlsl",
+			"ApplyAndClearSphereDistance",
+			ComputePass.RootSignature.RootSiganature.Get(),
+			GUIWindow.DirectXContext->Device))
+	{
+		return false;
+	}
+
+	if (!HDirectX::CreateComputePipelineState(
+			ComputePass.ApplySphereDistancePipelineState,
+			"Shaders/Hive/HComputeRender.hlsl",
+			"ApplySphereDistance",
+			ComputePass.RootSignature.RootSiganature.Get(),
+			GUIWindow.DirectXContext->Device))
+	{
+		return false;
+	}
+
+	if (!HDirectX::CreateComputePipelineState(
+			ComputePass.GetSphereDistancePipelineState,
+			"Shaders/Hive/HComputeRender.hlsl",
+			"GetSphereDistance",
+			ComputePass.RootSignature.RootSiganature.Get(),
+			GUIWindow.DirectXContext->Device))
+	{
+		return false;
+	}
+
 	return true;
 };
 
@@ -348,6 +431,42 @@ bool HHoney::RenderComputePass(
 		{
 			return false;
 		}
+
+		// March
+		if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
+				&ComputePass.MarchDistanceResource,
+				GUIWindow.DirectXContext->Device,
+				ComputePass.Resolution,
+				DXGI_FORMAT_R32_UINT))
+		{
+			return false;
+		}
+		if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
+				ComputePass.MarchDistanceHeapIndex,
+				ComputePass.MarchDistanceResource,
+				1,
+				GUIWindow.DirectXContext->Device))
+		{
+			return false;
+		}
+
+		// Step
+		if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
+				&ComputePass.StepDistanceResource,
+				GUIWindow.DirectXContext->Device,
+				ComputePass.Resolution,
+				DXGI_FORMAT_R32_UINT))
+		{
+			return false;
+		}
+		if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
+				ComputePass.StepDistanceHeapIndex,
+				ComputePass.StepDistanceResource,
+				1,
+				GUIWindow.DirectXContext->Device))
+		{
+			return false;
+		}
 	}
 
 	if (ComputePass.TriggerShaderRebuild.exchange(false))
@@ -360,6 +479,48 @@ bool HHoney::RenderComputePass(
 
 		if (!HDirectX::CreateComputePipelineState(
 				ComputePass.PipelineState,
+				"Shaders/Hive/HComputeRender.hlsl",
+				"main",
+				ComputePass.RootSignature.RootSiganature.Get(),
+				GUIWindow.DirectXContext->Device))
+		{
+			return false;
+		}
+
+		if (!HDirectX::CreateComputePipelineState(
+				ComputePass.ClearPipelineState,
+				"Shaders/Hive/HComputeRender.hlsl",
+				"clear",
+				ComputePass.RootSignature.RootSiganature.Get(),
+				GUIWindow.DirectXContext->Device))
+		{
+			return false;
+		}
+
+		if (!HDirectX::CreateComputePipelineState(
+				ComputePass.ApplyAndClearSphereDistancePipelineState,
+				"Shaders/Hive/HComputeRender.hlsl",
+				"ApplyAndClearSphereDistance",
+				ComputePass.RootSignature.RootSiganature.Get(),
+				GUIWindow.DirectXContext->Device))
+		{
+			return false;
+		}
+
+		if (!HDirectX::CreateComputePipelineState(
+				ComputePass.ApplySphereDistancePipelineState,
+				"Shaders/Hive/HComputeRender.hlsl",
+				"ApplySphereDistance",
+				ComputePass.RootSignature.RootSiganature.Get(),
+				GUIWindow.DirectXContext->Device))
+		{
+			return false;
+		}
+
+		if (!HDirectX::CreateComputePipelineState(
+				ComputePass.GetSphereDistancePipelineState,
+				"Shaders/Hive/HComputeRender.hlsl",
+				"GetSphereDistance",
 				ComputePass.RootSignature.RootSiganature.Get(),
 				GUIWindow.DirectXContext->Device))
 		{
@@ -380,78 +541,130 @@ bool HHoney::RenderComputePass(
 
 	ComputePass.RenderFuture = std::async(
 		[&](entt::entity Test) {
-			HDirectX::WaitForFence(ComputePass.Fence, ComputePass.FenceValue);
-
 			ComputePass.CommandAllocator->Reset();
 			ComputePass.CommandList->Reset(ComputePass.CommandAllocator, nullptr);
 
-			uint64_t RenderSphersDataSize = Scene.RenderedSpheres.size() * sizeof(HRenderedSphere);
-			HDirectX::CopyDataToResource(
-				ComputePass.SpheresResource,
-				GUIWindow.DirectXContext->Device,
-				ComputePass.CommandList,
-				Scene.RenderedSpheres.data(),
-				RenderSphersDataSize);
+			// Update Resources
+			{
+				uint64_t RenderSphersDataSize = Scene.RenderedSpheres.size() * sizeof(HRenderedSphere);
+				HDirectX::CopyDataToResource(
+					ComputePass.SpheresResource,
+					GUIWindow.DirectXContext->Device,
+					ComputePass.CommandList,
+					Scene.RenderedSpheres.data(),
+					RenderSphersDataSize);
 
-			uint64_t RenderedMaterialsDataSize = Scene.RenderedMaterials.size() * sizeof(HMaterial);
-			HDirectX::CopyDataToResource(
-				ComputePass.MaterialsResource,
-				GUIWindow.DirectXContext->Device,
-				ComputePass.CommandList,
-				Scene.RenderedMaterials.data(),
-				RenderedMaterialsDataSize);
+				uint64_t RenderedMaterialsDataSize = Scene.RenderedMaterials.size() * sizeof(HMaterial);
+				HDirectX::CopyDataToResource(
+					ComputePass.MaterialsResource,
+					GUIWindow.DirectXContext->Device,
+					ComputePass.CommandList,
+					Scene.RenderedMaterials.data(),
+					RenderedMaterialsDataSize);
 
-			HRenderedScene RenderedScene{};
-			RenderedScene.SphereCount = Scene.RenderedSpheres.size();
-			RenderedScene.SDFCount = Scene.RenderedSDFs.size();
-			const HWorldTransform& CameraTransform = Scene.Get<HWorldTransform>(Test);
-			RenderedScene.RayOrigin = CameraTransform.Translation;
+				HRenderedScene RenderedScene{};
+				RenderedScene.SphereCount = Scene.RenderedSpheres.size();
+				RenderedScene.SDFCount = Scene.RenderedSDFs.size();
+				const HWorldTransform& CameraTransform = Scene.Get<HWorldTransform>(Test);
+				RenderedScene.RayOrigin = CameraTransform.Translation;
 
-			HDirectX::CopyDataToResource(
-				ComputePass.SceneResource,
-				GUIWindow.DirectXContext->Device,
-				ComputePass.CommandList,
-				&RenderedScene,
-				sizeof(HRenderedScene));
+				HDirectX::CopyDataToResource(
+					ComputePass.SceneResource,
+					GUIWindow.DirectXContext->Device,
+					ComputePass.CommandList,
+					&RenderedScene,
+					sizeof(HRenderedScene));
 
-			uint64_t SDFsDataSize = Scene.RenderedSDFs.size() * sizeof(HSDF);
-			HDirectX::CopyDataToResource(
-				ComputePass.SDFsResource,
-				GUIWindow.DirectXContext->Device,
-				ComputePass.CommandList,
-				Scene.RenderedSDFs.data(),
-				SDFsDataSize);
+				uint64_t SDFsDataSize = Scene.RenderedSDFs.size() * sizeof(HSDF);
+				HDirectX::CopyDataToResource(
+					ComputePass.SDFsResource,
+					GUIWindow.DirectXContext->Device,
+					ComputePass.CommandList,
+					Scene.RenderedSDFs.data(),
+					SDFsDataSize);
+			}
 
-			ComputePass.CommandList->SetDescriptorHeaps(1, &ComputePass.CBVSRVUAVDescriptorHeap.DescriptorHeap);
-			ComputePass.CommandList->SetComputeRootSignature(ComputePass.RootSignature.RootSiganature.Get());
-			ComputePass.CommandList->SetComputeRootDescriptorTable(
-				0,
-				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.OutputHeapIndex));
-			ComputePass.CommandList->SetComputeRootDescriptorTable(
-				1,
-				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SpheresHeapIndex));
-			ComputePass.CommandList->SetComputeRootDescriptorTable(
-				2,
-				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.MaterialsHeapIndex));
-			ComputePass.CommandList->SetComputeRootDescriptorTable(
-				3,
-				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SceneHeapIndex));
-			ComputePass.CommandList->SetComputeRootDescriptorTable(
-				4,
-				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SDFsHeapIndex));
-			ComputePass.CommandList->SetPipelineState(ComputePass.PipelineState.Get());
+			// Set Root Signature
+			{
+				ComputePass.CommandList->SetDescriptorHeaps(1, &ComputePass.CBVSRVUAVDescriptorHeap.DescriptorHeap);
+				ComputePass.CommandList->SetComputeRootSignature(ComputePass.RootSignature.RootSiganature.Get());
+				ComputePass.CommandList->SetComputeRootDescriptorTable(
+					0,
+					ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.OutputHeapIndex));
+				ComputePass.CommandList->SetComputeRootDescriptorTable(
+					1,
+					ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SpheresHeapIndex));
+				ComputePass.CommandList->SetComputeRootDescriptorTable(
+					2,
+					ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.MaterialsHeapIndex));
+				ComputePass.CommandList->SetComputeRootDescriptorTable(
+					3,
+					ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SceneHeapIndex));
+				ComputePass.CommandList->SetComputeRootDescriptorTable(
+					4,
+					ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SDFsHeapIndex));
+				ComputePass.CommandList->SetComputeRootDescriptorTable(
+					5,
+					ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.MarchDistanceHeapIndex));
+				ComputePass.CommandList->SetComputeRootDescriptorTable(
+					6,
+					ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.StepDistanceHeapIndex));
+			}
 
-			ComputePass.CommandList->Dispatch(ComputePass.Resolution.x, ComputePass.Resolution.y, 1);
+			// Clear Pass
+			{
+				ComputePass.CommandList->SetPipelineState(ComputePass.ClearPipelineState.Get());
+				ComputePass.CommandList->Dispatch(ComputePass.Resolution.x, ComputePass.Resolution.y, 1);
+				CD3DX12_RESOURCE_BARRIER ResourceBarriers[2] = {
+					CD3DX12_RESOURCE_BARRIER::UAV(ComputePass.MarchDistanceResource),
+					CD3DX12_RESOURCE_BARRIER::UAV(ComputePass.StepDistanceResource)
+				};
+				ComputePass.CommandList->ResourceBarrier(2, ResourceBarriers);
+			}
+
+			// Step Pass
+			int32_t StepCount = 32;
+			for (int32_t i = 0; i < StepCount; i++)
+			{
+				// Get
+				ComputePass.CommandList->SetPipelineState(ComputePass.GetSphereDistancePipelineState.Get());
+				ComputePass.CommandList->Dispatch(ComputePass.Resolution.x, ComputePass.Resolution.y, 1);
+				CD3DX12_RESOURCE_BARRIER ResourceBarriers[2] = {
+					CD3DX12_RESOURCE_BARRIER::UAV(ComputePass.StepDistanceResource),
+					CD3DX12_RESOURCE_BARRIER::UAV(ComputePass.MarchDistanceResource)
+				};
+				ComputePass.CommandList->ResourceBarrier(1, ResourceBarriers);
+
+				// Apply
+				if (i == (StepCount - 1))
+				{
+					ComputePass.CommandList->SetPipelineState(ComputePass.ApplySphereDistancePipelineState.Get());
+				}
+				// Apply and Clear
+				else
+				{
+					ComputePass.CommandList->SetPipelineState(
+						ComputePass.ApplyAndClearSphereDistancePipelineState.Get());
+				}
+				ComputePass.CommandList->Dispatch(ComputePass.Resolution.x, ComputePass.Resolution.y, 1);
+				ComputePass.CommandList->ResourceBarrier(2, ResourceBarriers);
+			}
+			// Draw Pass
+			{
+				ComputePass.CommandList->SetPipelineState(ComputePass.PipelineState.Get());
+				ComputePass.CommandList->Dispatch(ComputePass.Resolution.x, ComputePass.Resolution.y, 1);
+			}
 
 			ComputePass.CommandList->Close();
-
 			HDirectX::ExecuteCommandLists<1>(ComputePass.CommandQueue, { ComputePass.CommandList });
 
 			ComputePass.FenceValue++;
 			HDirectX::SignalFence(ComputePass.CommandQueue, ComputePass.Fence, ComputePass.FenceValue);
+			HDirectX::WaitForFence(ComputePass.Fence, ComputePass.FenceValue);
 
 			return true;
-		}, CameraEntity);
+		},
+		CameraEntity);
 
 	return true;
 }

@@ -148,12 +148,24 @@ struct HComputePass
 
 	HRootSignature RootSignature;
 
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> ClearPipelineState = nullptr;
+
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> ApplyAndClearSphereDistancePipelineState = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> ApplySphereDistancePipelineState = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> GetSphereDistancePipelineState = nullptr;
+
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> PipelineState = nullptr;
 
 	glm::vec2 Resolution{};
 
 	ID3D12Resource* OutputResource = nullptr;
 	int64_t OutputHeapIndex = -1;
+
+	ID3D12Resource* MarchDistanceResource = nullptr;
+	int64_t MarchDistanceHeapIndex = -1;
+
+	ID3D12Resource* StepDistanceResource = nullptr;
+	int64_t StepDistanceHeapIndex = -1;
 
 	ID3D12Resource* SpheresResource = nullptr;
 	int64_t SpheresHeapIndex = -1;

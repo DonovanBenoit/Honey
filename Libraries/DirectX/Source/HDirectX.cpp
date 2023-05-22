@@ -161,6 +161,8 @@ bool HDirectX::CreateRootSignature(
 
 bool HDirectX::CreateComputePipelineState(
 	Microsoft::WRL::ComPtr<ID3D12PipelineState>& PipelineState,
+	const std::filesystem::path& ShaderPath,
+	const std::string_view& EntryPoint,
 	ID3D12RootSignature* RootSiganature,
 	ID3D12Device* Device)
 {
@@ -168,10 +170,10 @@ bool HDirectX::CreateComputePipelineState(
 	Microsoft::WRL::ComPtr<ID3DBlob> ComputeShaderBlob;
 	Microsoft::WRL::ComPtr<ID3DBlob> ErrorBlob;
 	HRESULT Result = D3DCompileFromFile(
-		L"Shaders/Hive/HComputeRender.hlsl",
+		ShaderPath.c_str(),
 		nullptr,
 		D3D_COMPILE_STANDARD_FILE_INCLUDE,
-		"main",
+		EntryPoint.data(),
 		"cs_5_0",
 		0,
 		0,
@@ -205,7 +207,8 @@ bool HDirectX::CreateComputePipelineState(
 bool HDirectX::CreateOrUpdateUnorderedTextureResource(
 	ID3D12Resource** Resource,
 	ID3D12Device* Device,
-	const glm::uvec2& Resolution)
+	const glm::uvec2& Resolution,
+	DXGI_FORMAT Format)
 {
 	if (*Resource != nullptr)
 	{
@@ -219,6 +222,9 @@ bool HDirectX::CreateOrUpdateUnorderedTextureResource(
 		(*Resource) = nullptr;
 	}
 
+	assert(Resolution.x > 0);
+	assert(Resolution.y > 0);
+
 	D3D12_RESOURCE_DESC TextureDesc = {};
 	TextureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	TextureDesc.Alignment = 0;
@@ -226,7 +232,7 @@ bool HDirectX::CreateOrUpdateUnorderedTextureResource(
 	TextureDesc.Height = Resolution.y;
 	TextureDesc.DepthOrArraySize = 1;
 	TextureDesc.MipLevels = 1;
-	TextureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	TextureDesc.Format = Format;
 	TextureDesc.SampleDesc.Count = 1;
 	TextureDesc.SampleDesc.Quality = 0;
 	TextureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -245,12 +251,24 @@ bool HDirectX::CreateOrUpdateUnorderedTextureResource(
 	return SUCCEEDED(Result);
 }
 
-bool HDirectX::CreateUnorderedBufferResource(
+bool HDirectX::CreateOrUpdateUnorderedBufferResource(
 	ID3D12Resource** Resource,
 	ID3D12Device* Device,
 	size_t ElementSize,
 	size_t ElementCount)
 {
+	if (*Resource != nullptr)
+	{
+		D3D12_RESOURCE_DESC BufferDesc = (*Resource)->GetDesc();
+		if (BufferDesc.Width == AlignedSize(ElementSize, 4) * ElementCount)
+		{
+			return true;
+		}
+
+		ULONG Count = (*Resource)->Release();
+		(*Resource) = nullptr;
+	}
+
 	CD3DX12_HEAP_PROPERTIES DefaultHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
 	D3D12_RESOURCE_DESC ResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(
 		AlignedSize(ElementSize, 4) * ElementCount,

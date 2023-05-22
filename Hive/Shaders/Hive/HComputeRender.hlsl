@@ -3,83 +3,76 @@
 
 #include "HScene.hlsl"
 
-bool RayRadianceFieldIntersect(HRadianceField RadianceField, float3 RayDirection, inout float IntersectionDistance)
+uint EncodeDistance(float Distance)
 {
-	return false;
-};
-
-float SampleSDF(float3 Position, HRenderedScene RenderedScene)
-{
-	float Distance = 1000.0;
-	for (uint SDFIndex = 0; SDFIndex < RenderedScene.SDFCount; SDFIndex++)
-	{
-		float4 PositionRadius = SDFs[SDFIndex].PositionRadius;
-		Distance = min(length(Position - PositionRadius.xyz) - PositionRadius.a, Distance);
-	}
-	return Distance;
+	return uint(max(Distance * 1000.0, 0.0));
 }
 
-bool RayMarch(float3 RayOrigin, float3 RayDirection, HRenderedScene RenderedScene)
+float DecodeDistance(uint EncodedDistance)
 {
-	float3 Position = RayOrigin;
-
-	float Distance = SampleSDF(Position, RenderedScene);
-
-	for (int Step = 0; Step < 16; Step++)
-	{
-		Distance = SampleSDF(Position, RenderedScene);
-		Position += RayDirection * Distance;
-
-		if (Distance < 0.1)
-		{
-			return true;
-		}
-	}
-
-	return false;
+	return float(EncodedDistance) / 1000.0;
 }
 
-bool RaySphereIntersect(HRenderedSphere RenderedSphere, float3 RayDirection, inout float IntersectionDistance)
+[numthreads(1, 1, 1)]
+void clear(uint3 GroupID : SV_GroupID)
 {
-	float t0 = dot(RenderedSphere.RayOriginToSphereCenter.xyz, RayDirection);
-	float d2 = dot(RenderedSphere.RayOriginToSphereCenter.xyz, RenderedSphere.RayOriginToSphereCenter.xyz) - t0 * t0;
-	if (d2 > RenderedSphere.RadiusSquared)
+	OutputTexture[GroupID.xy] = float4(0.36, 0.69, 1.0, 1.0);
+	MarchDistanceTexture[GroupID.xy] = 0;
+	StepDistanceTexture[GroupID.xy] = EncodeDistance(1000.0);
+}
+
+[numthreads(1, 1, 1)]
+void ApplyAndClearSphereDistance(uint3 GroupID : SV_GroupID)
+{
+	MarchDistanceTexture[GroupID.xy] = EncodeDistance(DecodeDistance(MarchDistanceTexture[GroupID.xy]) + DecodeDistance(StepDistanceTexture[GroupID.xy]));
+	StepDistanceTexture[GroupID.xy] = EncodeDistance(1000.0);
+}
+
+[numthreads(64, 1, 1)]
+void GetSphereDistance(uint3 GroupID : SV_GroupID, uint3 GroupThreadID : SV_GroupThreadID)
+{
+	HRenderedScene RenderedScene = RenderedScenes[0];
+	if (GroupThreadID.x >= RenderedScene.SDFCount)
 	{
-		// The ray misses the sphere
-		return false;
+		return;
 	}
 
-	float t1 = sqrt(RenderedSphere.RadiusSquared - d2);
-	IntersectionDistance = t0 > (t1 + 0.000001) ? t0 - t1 : t0 + t1;
-	return IntersectionDistance > 0.000001;
+	float3 RayOrigin = RenderedScene.RayOrigin;
+	float3 RayDirection = normalize(float3((float2(GroupID.xy) - float2(512, 512)) / 1024.0, 1.0));
+	float3 Position = RayOrigin + RayDirection * DecodeDistance(MarchDistanceTexture[GroupID.xy]);
+
+	float4 PositionRadius = SDFs[GroupThreadID.x].PositionRadius;
+	float Distance = length(Position - PositionRadius.xyz) - PositionRadius.a;
+
+	InterlockedMin(StepDistanceTexture[GroupID.xy], EncodeDistance(Distance));
+}
+
+[numthreads(1, 1, 1)]
+void ApplySphereDistance(uint3 GroupID : SV_GroupID)
+{
+	MarchDistanceTexture[GroupID.xy] = EncodeDistance(DecodeDistance(MarchDistanceTexture[GroupID.xy]) + DecodeDistance(StepDistanceTexture[GroupID.xy]));
 }
 
 // Define the compute shader entry point
 [numthreads(1, 1, 1)]
-void main(uint3 DispatchThreadId : SV_DispatchThreadID)
+void main(uint3 GroupID : SV_GroupID)
 {
-    // Compute the output pixel coordinates from the dispatch thread ID
-    uint2 PixelCoord = DispatchThreadId.xy;
 
-	HRenderedScene RenderedScene = RenderedScenes[0];
-	
+	// HRenderedScene RenderedScene = RenderedScenes[0];
 	// Ray Generation
-	float3 RayOrigin = RenderedScene.RayOrigin;
-	float3 RayDirection = normalize(float3((float2(PixelCoord) - float2(512, 512)) / 1024.0, 1.0));
+	//float3 RayOrigin = RenderedScene.RayOrigin;
+	//float3 RayDirection = normalize(float3((float2(PixelCoord) - float2(512, 512)) / 1024.0, 1.0));
 
-	if (RayMarch(RayOrigin, RayDirection, RenderedScene))
+	float StepDistance = DecodeDistance(StepDistanceTexture[GroupID.xy]);
+	if (StepDistance < 0.01)
 	{
-		OutputTexture[PixelCoord] = float4(1.0, 0.0, 0.0, 1.0);
+		float Distance = DecodeDistance(MarchDistanceTexture[GroupID.xy]);
+		OutputTexture[GroupID.xy] = float4(Distance * 0.01, Distance * 0.5, Distance * 0.5, 1.0);
 	}
-	else
-	{
-		OutputTexture[PixelCoord] = float4(0.0, 1.0, 0.0, 1.0);
-	}
-	return;
 
 	
 	// Closest Hit
-	float THit = 100000.0;
+	/*float THit = 100000.0;
 	uint HitSphere = 0xFFFFFFFF;
 	for (uint Sphere = 0; Sphere < RenderedScene.SphereCount; Sphere++)
 	{
@@ -109,5 +102,5 @@ void main(uint3 DispatchThreadId : SV_DispatchThreadID)
 	}
 	
 	// Clear the output texture to solid blue
-    OutputTexture[PixelCoord] = float4(Color, 1.0);
+    OutputTexture[PixelCoord] = float4(Color, 1.0);*/
 }
