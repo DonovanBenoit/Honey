@@ -148,8 +148,6 @@ struct HComputePass
 
 	HRootSignature RootSignature;
 
-	Microsoft::WRL::ComPtr<ID3D12PipelineState> ClearPipelineState = nullptr;
-
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> ApplyAndClearSphereDistancePipelineState = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> ApplySphereDistancePipelineState = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> GetSphereDistancePipelineState = nullptr;

@@ -14,21 +14,13 @@ float DecodeDistance(uint EncodedDistance)
 }
 
 [numthreads(1, 1, 1)]
-void clear(uint3 GroupID : SV_GroupID)
-{
-	OutputTexture[GroupID.xy] = float4(0.36, 0.69, 1.0, 1.0);
-	MarchDistanceTexture[GroupID.xy] = 0;
-	StepDistanceTexture[GroupID.xy] = EncodeDistance(1000.0);
-}
-
-[numthreads(1, 1, 1)]
 void ApplyAndClearSphereDistance(uint3 GroupID : SV_GroupID)
 {
 	MarchDistanceTexture[GroupID.xy] = EncodeDistance(DecodeDistance(MarchDistanceTexture[GroupID.xy]) + DecodeDistance(StepDistanceTexture[GroupID.xy]));
 	StepDistanceTexture[GroupID.xy] = EncodeDistance(1000.0);
 }
 
-[numthreads(64, 1, 1)]
+[numthreads(32, 1, 1)]
 void GetSphereDistance(uint3 GroupID : SV_GroupID, uint3 GroupThreadID : SV_GroupThreadID)
 {
 	HRenderedScene RenderedScene = RenderedScenes[0];
@@ -69,6 +61,13 @@ void main(uint3 GroupID : SV_GroupID)
 		float Distance = DecodeDistance(MarchDistanceTexture[GroupID.xy]);
 		OutputTexture[GroupID.xy] = float4(Distance * 0.01, Distance * 0.5, Distance * 0.5, 1.0);
 	}
+	else
+	{
+		OutputTexture[GroupID.xy] = float4(0.36, 0.69, 1.0, 1.0);
+	}
+
+	MarchDistanceTexture[GroupID.xy] = 0;
+	StepDistanceTexture[GroupID.xy] = EncodeDistance(1000.0);
 
 	
 	// Closest Hit
