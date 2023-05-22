@@ -403,7 +403,7 @@ bool HHoney::RenderComputePass(
 
 			HRenderedScene RenderedScene{};
 			RenderedScene.SphereCount = Scene.RenderedSpheres.size();
-			RenderedScene.SDFCount = Scene.SDFs.size();
+			RenderedScene.SDFCount = Scene.RenderedSDFs.size();
 			const HWorldTransform& CameraTransform = Scene.Get<HWorldTransform>(Test);
 			RenderedScene.RayOrigin = CameraTransform.Translation;
 
@@ -414,12 +414,12 @@ bool HHoney::RenderComputePass(
 				&RenderedScene,
 				sizeof(HRenderedScene));
 
-			uint64_t SDFsDataSize = Scene.SDFs.size() * sizeof(HSDF);
+			uint64_t SDFsDataSize = Scene.RenderedSDFs.size() * sizeof(HSDF);
 			HDirectX::CopyDataToResource(
 				ComputePass.SDFsResource,
 				GUIWindow.DirectXContext->Device,
 				ComputePass.CommandList,
-				Scene.SDFs.data(),
+				Scene.RenderedSDFs.data(),
 				SDFsDataSize);
 
 			ComputePass.CommandList->SetDescriptorHeaps(1, &ComputePass.CBVSRVUAVDescriptorHeap.DescriptorHeap);

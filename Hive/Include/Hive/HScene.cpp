@@ -31,7 +31,6 @@ entt::entity HScene::CreateSDF()
 	HWorldTransform& WorldTransform = Registry.emplace<HWorldTransform>(SDFEntity);
 	HRelativeTransform& RelativeTransform = Registry.emplace<HRelativeTransform>(SDFEntity);
 	HMaterial& Material = Registry.emplace<HMaterial>(SDFEntity);
-	SDFs.emplace_back();
 	RenderedMaterials.emplace_back();
 	return SDFEntity;
 }
@@ -114,8 +113,11 @@ void HHoney::UpdateScene(HScene& Scene, entt::entity CameraEntity)
 			Scene.RenderedMaterials[MaterialIndex++] = Material;
 		});
 
+	Scene.RenderedSDFs.clear();
+
 	Scene.Registry.view<HSDF, HMaterial, HWorldTransform>().each(
 		[&](entt::entity Entity, HSDF& SDF, HMaterial& Material, HWorldTransform& WorldTransform) {
 			SDF.PositionRadius = glm::vec4(WorldTransform.Translation, SDF.PositionRadius.a);
+			Scene.RenderedSDFs.push_back(SDF);
 		});
 }

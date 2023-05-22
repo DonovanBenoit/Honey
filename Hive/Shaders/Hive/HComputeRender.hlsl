@@ -104,7 +104,7 @@ void main(uint3 DispatchThreadId : SV_DispatchThreadID)
 	float3 RayOrigin = RenderedScene.RayOrigin;
 	float3 RayDirection = normalize(float3((float2(PixelCoord) - float2(512, 512)) / 1024.0, 1.0));
 
-	/*if (RayMarch(RayOrigin, RayDirection, RenderedScene))
+	if (RayMarch(RayOrigin, RayDirection, RenderedScene))
 	{
 		OutputTexture[PixelCoord] = float4(1.0, 0.0, 0.0, 1.0);
 	}
@@ -112,7 +112,7 @@ void main(uint3 DispatchThreadId : SV_DispatchThreadID)
 	{
 		OutputTexture[PixelCoord] = float4(0.0, 1.0, 0.0, 1.0);
 	}
-	return;*/
+	return;
 
 	
 	// Closest Hit

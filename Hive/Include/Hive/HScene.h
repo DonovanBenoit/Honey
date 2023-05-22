@@ -98,7 +98,7 @@ struct HScene
 		return Registry.get<T>(Entity);
 	}
 
-	std::vector<HSDF> SDFs{};
+	std::vector<HSDF> RenderedSDFs{};
 
 	std::vector<HRenderedSphere> RenderedSpheres{};
 
