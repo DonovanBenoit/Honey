@@ -81,7 +81,7 @@ void HHoney::DefaultScene(HScene& Scene)
 		HRelativeTransform& RelativeTransform = Scene.Get<HRelativeTransform>(SDFEntity);
 		HSDF& SDF = Scene.Get<HSDF>(SDFEntity);
 
-		SDF.Radius = glm::linearRand(0.2f, 2.0f);
+		SDF.PositionRadius.a = glm::linearRand(0.2f, 2.0f);
 		RelativeTransform.Translation = glm::sphericalRand(1.0f) * glm::linearRand(0.1f, 10.0f);
 
 		Material.Albedo = glm::abs(glm::sphericalRand(1.0f));
@@ -116,6 +116,6 @@ void HHoney::UpdateScene(HScene& Scene, entt::entity CameraEntity)
 
 	Scene.Registry.view<HSDF, HMaterial, HWorldTransform>().each(
 		[&](entt::entity Entity, HSDF& SDF, HMaterial& Material, HWorldTransform& WorldTransform) {
-			SDF.Position = WorldTransform.Translation;
+			SDF.PositionRadius = glm::vec4(WorldTransform.Translation, SDF.PositionRadius.a);
 		});
 }

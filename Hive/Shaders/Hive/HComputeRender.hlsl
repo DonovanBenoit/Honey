@@ -30,8 +30,7 @@ struct HRadianceField
 
 struct HSDF
 {
-	float3 Position;
-	float Radius;
+	float4 PositionRadius;
 };
 
 bool RayRadianceFieldIntersect(HRadianceField RadianceField, float3 RayDirection, inout float IntersectionDistance)
@@ -51,8 +50,8 @@ float SampleSDF(float3 Position, HRenderedScene RenderedScene)
 	float Distance = 1000.0;
 	for (uint SDFIndex = 0; SDFIndex < RenderedScene.SDFCount; SDFIndex++)
 	{
-		HSDF SDF = SDFs[SDFIndex];
-		Distance = min(length(Position - SDF.Position) - SDF.Radius, Distance);
+		float4 PositionRadius = SDFs[SDFIndex].PositionRadius;
+		Distance = min(length(Position - PositionRadius.xyz) - PositionRadius.a, Distance);
 	}
 	return Distance;
 }
@@ -68,7 +67,7 @@ bool RayMarch(float3 RayOrigin, float3 RayDirection, HRenderedScene RenderedScen
 		Distance = SampleSDF(Position, RenderedScene);
 		Position += RayDirection * Distance;
 
-		if (Distance < 0.01)
+		if (Distance < 0.1)
 		{
 			return true;
 		}
@@ -104,6 +103,17 @@ void main(uint3 DispatchThreadId : SV_DispatchThreadID)
 	// Ray Generation
 	float3 RayOrigin = RenderedScene.RayOrigin;
 	float3 RayDirection = normalize(float3((float2(PixelCoord) - float2(512, 512)) / 1024.0, 1.0));
+
+	/*if (RayMarch(RayOrigin, RayDirection, RenderedScene))
+	{
+		OutputTexture[PixelCoord] = float4(1.0, 0.0, 0.0, 1.0);
+	}
+	else
+	{
+		OutputTexture[PixelCoord] = float4(0.0, 1.0, 0.0, 1.0);
+	}
+	return;*/
+
 	
 	// Closest Hit
 	float THit = 100000.0;
@@ -120,10 +130,6 @@ void main(uint3 DispatchThreadId : SV_DispatchThreadID)
 				HitSphere = Sphere;
 			}
 		}
-	}
-
-	if (RayMarch(RayOrigin, RayDirection, RenderedScene))
-	{
 	}
 
 	// Shading

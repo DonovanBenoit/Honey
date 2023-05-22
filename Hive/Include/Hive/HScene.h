@@ -42,8 +42,7 @@ enum class HSDFShape
 
 struct HSDF
 {
-	glm::vec3 Position = { 0.0f, 0.0f, 0.0f };
-	float Radius;
+	glm::vec4 PositionRadius = { 0.0f, 0.0f, 0.0f, 1.0f };
 };
 
 struct HRenderedScene
