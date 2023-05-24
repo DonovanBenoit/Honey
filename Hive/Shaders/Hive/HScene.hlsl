@@ -39,6 +39,3 @@ RWStructuredBuffer<HRenderedSphere> RenderedSpheres : register(u1);
 RWStructuredBuffer<HMaterial> Materials : register(u2);
 RWStructuredBuffer<HRenderedScene> RenderedScenes : register(u3);
 RWStructuredBuffer<HSDF> SDFs : register(u4);
-
-RWTexture2D<uint> MarchDistanceTexture : register(u5);
-RWTexture2D<uint> StepDistanceTexture : register(u6);
