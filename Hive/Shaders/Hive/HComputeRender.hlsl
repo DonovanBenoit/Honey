@@ -3,11 +3,8 @@
 
 #include "HScene.hlsl"
 
-void ComputeSphereDistance(float3 RayDirection, inout float StepDistance)
+void ComputeSphereDistance(float3 RayOrigin, float3 RayDirection, inout float StepDistance)
 {
-	HRenderedScene RenderedScene = RenderedScenes[0];
-
-	float3 RayOrigin = RenderedScene.RayOrigin;
 	float3 Position = RayOrigin;
 
 	for (int i = 0; i < 32; i++)
@@ -33,10 +30,11 @@ void ComputeSphereDistance(float3 RayDirection, inout float StepDistance)
 [numthreads(1, 1, 1)]
 void main(uint3 GroupID : SV_GroupID)
 {
+	HRenderedScene RenderedScene = RenderedScenes[0];
 	float3 RayDirection = normalize(float3((float2(GroupID.xy) - float2(512, 512)) / 1024.0, 1.0));
 
 	float StepDistance = 0.0;
-	ComputeSphereDistance(RayDirection, StepDistance);
+	ComputeSphereDistance(RenderedScene.RayOrigin, RayDirection, StepDistance);
 
 	if (StepDistance < 0.1)
 	{
