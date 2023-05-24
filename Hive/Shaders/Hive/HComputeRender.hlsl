@@ -10,7 +10,7 @@ void ComputeSphereDistance(float3 RayDirection, inout float StepDistance)
 	float3 RayOrigin = RenderedScene.RayOrigin;
 	float3 Position = RayOrigin;
 
-	for (int i = 0; i < 16; i++)
+	for (int i = 0; i < 32; i++)
 	{
 		float Distance = 1000.0;
 		for (uint SDFIndex = 0; SDFIndex < 32; SDFIndex++)
