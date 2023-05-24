@@ -10,7 +10,7 @@ void ComputeSphereDistance(float3 RayDirection, inout float StepDistance)
 	float3 RayOrigin = RenderedScene.RayOrigin;
 	float3 Position = RayOrigin;
 
-	for (int i = 0; i < 32; i++)
+	for (int i = 0; i < 16; i++)
 	{
 		float Distance = 1000.0;
 		for (uint SDFIndex = 0; SDFIndex < 32; SDFIndex++)
@@ -21,6 +21,11 @@ void ComputeSphereDistance(float3 RayDirection, inout float StepDistance)
 
 		Position += RayDirection * Distance;
 		StepDistance = Distance;
+
+		if (Distance < 0.1)
+		{
+			return;
+		}
 	}
 }
 
@@ -33,7 +38,7 @@ void main(uint3 GroupID : SV_GroupID)
 	float StepDistance = 0.0;
 	ComputeSphereDistance(RayDirection, StepDistance);
 
-	if (StepDistance < 0.01)
+	if (StepDistance < 0.1)
 	{
 		OutputTexture[GroupID.xy] = float4(1.0, 0.0, 0.0, 1.0);
 	}
