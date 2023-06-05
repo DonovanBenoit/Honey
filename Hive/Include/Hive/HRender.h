@@ -139,6 +139,8 @@ struct HComputePass
 	ID3D12CommandQueue* CommandQueue = nullptr;
 	ID3D12CommandAllocator* CommandAllocator = nullptr;
 	ID3D12GraphicsCommandList* CommandList = nullptr;
+	ID3D12GraphicsCommandList* UpdateCommandList = nullptr;
+	ID3D12CommandAllocator* UpdateCommandAllocator = nullptr;
 	HFence Fence{};
 	uint64_t FenceValue = 0;
 
@@ -164,15 +166,19 @@ struct HComputePass
 	int64_t StepDistanceHeapIndex = -1;*/
 
 	ID3D12Resource* SpheresResource = nullptr;
+	ID3D12Resource* SpheresUploadResource = nullptr;
 	int64_t SpheresHeapIndex = -1;
 
 	ID3D12Resource* MaterialsResource = nullptr;
+	ID3D12Resource* MaterialsUploadResource = nullptr;
 	int64_t MaterialsHeapIndex = -1;
 
 	ID3D12Resource* SceneResource = nullptr;
+	ID3D12Resource* SceneUploadResource = nullptr;
 	int64_t SceneHeapIndex = -1;
 
 	ID3D12Resource* SDFsResource = nullptr;
+	ID3D12Resource* SDFsUploadResource = nullptr;
 	int64_t SDFsHeapIndex = -1;
 
 	std::future<bool> RenderFuture{};

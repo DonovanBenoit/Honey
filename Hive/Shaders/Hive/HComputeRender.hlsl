@@ -3,17 +3,23 @@
 
 #include "HScene.hlsl"
 
-void ComputeSphereDistanceA(float3 RayOrigin, float3 RayDirection, inout float StepDistance)
+void ComputeSphereDistanceA(float3 RayOrigin, float3 RayDirection, inout float StepDistance, inout float3 HitPosition, inout float3 HitNormal)
 {
 	float3 Position = RayOrigin;
 
 	for (int Step = 0; Step < 32; Step++)
 	{
 		float Distance = 1000.0;
+		uint ClosestSDFIndex = 0;
 		for (uint SDFIndex = 0; SDFIndex < 32; SDFIndex++)
 		{
 			float4 PositionRadius = SDFs[SDFIndex].PositionRadius;
-			Distance = min(length(Position - PositionRadius.xyz) - PositionRadius.a, Distance);
+			float SDFDistance = length(Position - PositionRadius.xyz) - PositionRadius.a;
+			if (SDFDistance < Distance)
+			{
+				Distance = SDFDistance;
+				ClosestSDFIndex = SDFIndex;
+			}
 		}
 
 		Position += RayDirection * Distance;
@@ -21,30 +27,47 @@ void ComputeSphereDistanceA(float3 RayOrigin, float3 RayDirection, inout float S
 
 		if (Distance < 0.1)
 		{
+			HitPosition = Position;
+
+			// Cheating
+			float4 PositionRadius = SDFs[ClosestSDFIndex].PositionRadius;
+			HitNormal = normalize(HitPosition - PositionRadius.xyz);
 			return;
 		}
 	}
 }
 
-void ComputeSphereDistanceB(float3 RayOrigin, float3 RayDirection, inout float StepDistance)
+void ComputeSphereDistanceB(float3 RayOrigin, float3 RayDirection, inout float StepDistance, inout float3 HitPosition, inout float3 HitNormal)
 {
-	float3 Position = RayOrigin;
+	StepDistance = 1000.0;
 
-	for (int Step = 0; Step < 32; Step++)
+	float MinMarchDistance = 1000.0;
+	for (uint SDFIndex = 0; SDFIndex < 32; SDFIndex++)
 	{
-		float Distance = 1000.0;
-		for (uint SDFIndex = 0; SDFIndex < 32; SDFIndex++)
-		{
-			float4 PositionRadius = SDFs[SDFIndex].PositionRadius;
-			Distance = min(length(Position - PositionRadius.xyz) - PositionRadius.a, Distance);
-		}
+		float4 PositionRadius = SDFs[SDFIndex].PositionRadius;
+		float3 Position = RayOrigin;
+		float MarchDistance = 0.0;
 
-		Position += RayDirection * Distance;
-		StepDistance = Distance;
-
-		if (Distance < 0.1)
+		for (int Step = 0; Step < 32; Step++)
 		{
-			return;
+			float Distance = length(Position - PositionRadius.xyz) - PositionRadius.a;
+			MarchDistance += Distance;
+			Position += RayDirection * Distance;
+			if (Distance < 0.1)
+			{
+				if (MarchDistance < MinMarchDistance)
+				{
+					MinMarchDistance = MarchDistance;
+					StepDistance = Distance;
+					HitPosition = Position;
+
+					float RightDistance = length(Position + float3(0.05, 0.0, 0.0) - PositionRadius.xyz) - PositionRadius.a;
+					float DownDistance = length(Position + float3(0.0, 0.05, 0.0) - PositionRadius.xyz) - PositionRadius.a;
+
+					HitNormal = normalize(float3(RightDistance, DownDistance, 0.1));
+				}
+				break;
+			}
 		}
 	}
 }
@@ -57,11 +80,13 @@ void main(uint3 GroupID : SV_GroupID)
 	float3 RayDirection = normalize(float3((float2(GroupID.xy) - float2(512, 512)) / 1024.0, 1.0));
 
 	float StepDistance = 0.0;
-	ComputeSphereDistanceA(RenderedScene.RayOrigin, RayDirection, StepDistance);
+	float3 HitPosition = float3(0.0, 0.0, 0.0);
+	float3 HitNormal = float3(0.0, 0.0, 0.0);
+	ComputeSphereDistanceA(RenderedScene.RayOrigin, RayDirection, StepDistance, HitPosition, HitNormal);
 
 	if (StepDistance < 0.1)
 	{
-		OutputTexture[GroupID.xy] = float4(1.0, 0.0, 0.0, 1.0);
+		OutputTexture[GroupID.xy] = float4(abs(HitNormal), 1.0);
 	}
 	else
 	{

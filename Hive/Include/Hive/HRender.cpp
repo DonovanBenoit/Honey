@@ -185,6 +185,24 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 		return false;
 	}
 
+
+	if (!HDirectX::CreateCommandAllocator(
+		&ComputePass.UpdateCommandAllocator,
+		GUIWindow.DirectXContext->Device,
+		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
+	{
+		return false;
+	}
+
+	if (!HDirectX::CreateCommandList(
+		&ComputePass.UpdateCommandList,
+		ComputePass.UpdateCommandAllocator,
+		GUIWindow.DirectXContext->Device,
+		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
+	{
+		return false;
+	}
+
 	if (!HDirectX::CreateFence(ComputePass.Fence, GUIWindow.DirectXContext->Device))
 	{
 		return false;
@@ -459,50 +477,61 @@ bool HHoney::RenderComputePass(
 		ComputePass.RenderFuture.wait();
 	}
 
+	// Update Resources
+	{
+		ComputePass.UpdateCommandAllocator->Reset();
+		ComputePass.UpdateCommandList->Reset(ComputePass.UpdateCommandAllocator, nullptr);
+
+		uint64_t RenderSphersDataSize = Scene.RenderedSpheres.size() * sizeof(HRenderedSphere);
+		HDirectX::CopyDataToResource(
+			ComputePass.SpheresResource,
+			ComputePass.SpheresUploadResource,
+			GUIWindow.DirectXContext->Device,
+			ComputePass.UpdateCommandList,
+			Scene.RenderedSpheres.data(),
+			RenderSphersDataSize);
+
+		uint64_t RenderedMaterialsDataSize = Scene.RenderedMaterials.size() * sizeof(HMaterial);
+		HDirectX::CopyDataToResource(
+			ComputePass.MaterialsResource,
+			ComputePass.MaterialsUploadResource,
+			GUIWindow.DirectXContext->Device,
+			ComputePass.UpdateCommandList,
+			Scene.RenderedMaterials.data(),
+			RenderedMaterialsDataSize);
+
+		HRenderedScene RenderedScene{};
+		RenderedScene.SphereCount = Scene.RenderedSpheres.size();
+		RenderedScene.SDFCount = Scene.RenderedSDFs.size();
+		const HWorldTransform& CameraTransform = Scene.Get<HWorldTransform>(CameraEntity);
+		RenderedScene.RayOrigin = CameraTransform.Translation;
+
+		HDirectX::CopyDataToResource(
+			ComputePass.SceneResource,
+			ComputePass.SceneUploadResource,
+			GUIWindow.DirectXContext->Device,
+			ComputePass.UpdateCommandList,
+			&RenderedScene,
+			sizeof(HRenderedScene));
+
+		uint64_t SDFsDataSize = Scene.RenderedSDFs.size() * sizeof(HSDF);
+		assert(SDFsDataSize > 0);
+		HDirectX::CopyDataToResource(
+			ComputePass.SDFsResource,
+			ComputePass.SDFsUploadResource,
+			GUIWindow.DirectXContext->Device,
+			ComputePass.UpdateCommandList,
+			Scene.RenderedSDFs.data(),
+			SDFsDataSize);
+
+		ComputePass.UpdateCommandList->Close();
+		HDirectX::ExecuteCommandLists<1>(ComputePass.CommandQueue, { ComputePass.UpdateCommandList });
+	}
+
 	ComputePass.RenderFuture = std::async(
-		[&](entt::entity Test) {
+		[&]() {
 			ComputePass.CommandAllocator->Reset();
 			ComputePass.CommandList->Reset(ComputePass.CommandAllocator, nullptr);
-
-			// Update Resources
-			{
-				uint64_t RenderSphersDataSize = Scene.RenderedSpheres.size() * sizeof(HRenderedSphere);
-				HDirectX::CopyDataToResource(
-					ComputePass.SpheresResource,
-					GUIWindow.DirectXContext->Device,
-					ComputePass.CommandList,
-					Scene.RenderedSpheres.data(),
-					RenderSphersDataSize);
-
-				uint64_t RenderedMaterialsDataSize = Scene.RenderedMaterials.size() * sizeof(HMaterial);
-				HDirectX::CopyDataToResource(
-					ComputePass.MaterialsResource,
-					GUIWindow.DirectXContext->Device,
-					ComputePass.CommandList,
-					Scene.RenderedMaterials.data(),
-					RenderedMaterialsDataSize);
-
-				HRenderedScene RenderedScene{};
-				RenderedScene.SphereCount = Scene.RenderedSpheres.size();
-				RenderedScene.SDFCount = Scene.RenderedSDFs.size();
-				const HWorldTransform& CameraTransform = Scene.Get<HWorldTransform>(Test);
-				RenderedScene.RayOrigin = CameraTransform.Translation;
-
-				HDirectX::CopyDataToResource(
-					ComputePass.SceneResource,
-					GUIWindow.DirectXContext->Device,
-					ComputePass.CommandList,
-					&RenderedScene,
-					sizeof(HRenderedScene));
-
-				uint64_t SDFsDataSize = Scene.RenderedSDFs.size() * sizeof(HSDF);
-				HDirectX::CopyDataToResource(
-					ComputePass.SDFsResource,
-					GUIWindow.DirectXContext->Device,
-					ComputePass.CommandList,
-					Scene.RenderedSDFs.data(),
-					SDFsDataSize);
-			}
 
 			// Set Root Signature
 			{
@@ -545,8 +574,7 @@ bool HHoney::RenderComputePass(
 			HDirectX::WaitForFence(ComputePass.Fence, ComputePass.FenceValue);
 
 			return true;
-		},
-		CameraEntity);
+		});
 
 	return true;
 }

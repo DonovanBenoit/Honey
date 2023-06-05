@@ -285,31 +285,48 @@ bool HDirectX::CreateOrUpdateUnorderedBufferResource(
 
 void HDirectX::CopyDataToResource(
 	ID3D12Resource* Resource,
+	ID3D12Resource* UploadResource,
 	ID3D12Device* Device,
 	ID3D12GraphicsCommandList* CommandList,
 	void* Data,
 	size_t Size)
 {
-	ID3D12Resource* UploadHeap = nullptr;
-	D3D12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-	D3D12_RESOURCE_DESC ResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(Size);
-	HRESULT Result = Device->CreateCommittedResource(
-		&HeapProps,
-		D3D12_HEAP_FLAG_NONE,
-		&ResourceDesc,
-		D3D12_RESOURCE_STATE_GENERIC_READ,
-		nullptr,
-		IID_PPV_ARGS(&UploadHeap));
-	if (FAILED(Result))
+	assert(Size > 0);
+
+	bool CreateUploadBuffer = UploadResource == nullptr;
+	if (UploadResource != nullptr)
 	{
-		return;
+		D3D12_RESOURCE_DESC UploadDesc = UploadResource->GetDesc();
+		if (UploadDesc.Width != Size)
+		{
+			CreateUploadBuffer = true;
+			UploadResource->Release();
+			UploadResource = nullptr;
+		}
+	}
+
+	if (CreateUploadBuffer)
+	{
+		D3D12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+		D3D12_RESOURCE_DESC ResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(Size);
+		HRESULT Result = Device->CreateCommittedResource(
+			&HeapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&ResourceDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&UploadResource));
+		if (FAILED(Result))
+		{
+			return;
+		}
 	}
 
 	// Copy the data to the upload heap
 	void* MappedData;
-	UploadHeap->Map(0, nullptr, &MappedData);
+	UploadResource->Map(0, nullptr, &MappedData);
 	memcpy(MappedData, Data, Size);
-	UploadHeap->Unmap(0, nullptr);
+	UploadResource->Unmap(0, nullptr);
 
 	// Transition the resource to the appropriate state for Copy
 	D3D12_RESOURCE_BARRIER StartBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -319,7 +336,7 @@ void HDirectX::CopyDataToResource(
 	CommandList->ResourceBarrier(1, &StartBarrier);
 
 	// Copy the data to the resource
-	CommandList->CopyBufferRegion(Resource, 0, UploadHeap, 0, Size);
+	CommandList->CopyBufferRegion(Resource, 0, UploadResource, 0, Size);
 
 	// Transition the resource to the appropriate state for use
 	D3D12_RESOURCE_BARRIER EndBarrier = CD3DX12_RESOURCE_BARRIER::Transition(

@@ -117,6 +117,7 @@ namespace HDirectX
 
 	void CopyDataToResource(
 		ID3D12Resource* Resource,
+		ID3D12Resource* UploadResource,
 		ID3D12Device* Device,
 		ID3D12GraphicsCommandList* CommandList,
 		void* Data,
