@@ -8,6 +8,10 @@
 #include <array>
 #include <vector>
 
+#include <Windows.h>
+
+struct GLFWwindow;
+
 struct HGUIImage
 {
 	uint64_t Width = 0;
@@ -34,8 +38,8 @@ struct HGUIImage
 
 struct HGUIWindow
 {
+	GLFWwindow* Window = nullptr;
 #ifdef _WIN32
-	WNDCLASSEX WindowClass;
 	HWND WindowHandle;
 	HDirectXContext* DirectXContext = nullptr;
 

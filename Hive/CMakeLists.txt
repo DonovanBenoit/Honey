@@ -30,3 +30,7 @@ target_link_libraries(Hive PRIVATE glm)
 if (MSVC)
 	target_link_libraries(Hive PRIVATE DirectX)
 endif()
+
+
+target_link_libraries(Hive PRIVATE glfw)
+target_include_directories(Hive PRIVATE "${GLFW_SOURCE_DIR}")

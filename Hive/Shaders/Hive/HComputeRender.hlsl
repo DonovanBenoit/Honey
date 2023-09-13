@@ -76,6 +76,9 @@ void ComputeSphereDistanceB(float3 RayOrigin, float3 RayDirection, inout float S
 [numthreads(1, 1, 1)]
 void main(uint3 GroupID : SV_GroupID)
 {
+	OutputTexture[GroupID.xy] = float4(0.36, 0.69, 1.0, 1.0);
+	return;
+
 	HRenderedScene RenderedScene = RenderedScenes[0];
 	float3 RayDirection = normalize(float3((float2(GroupID.xy) - float2(512, 512)) / 1024.0, 1.0));
 

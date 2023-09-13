@@ -2,7 +2,12 @@
 
 #include "HImGui.h"
 #include "imgui_impl_dx12.h"
-#include "imgui_impl_win32.h"
+// #include "imgui_impl_win32.h"
+#include "imgui_impl_glfw.h"
+
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
 
 #include <Windows.h>
 #include <directx/d3dx12.h>
@@ -19,7 +24,7 @@ namespace
 {
 	HDirectXContext DirectXContext{};
 
-	union HGUIWindowExtra
+	/*union HGUIWindowExtra
 	{
 		HGUIWindow* GUIWindow;
 		struct
@@ -83,43 +88,16 @@ namespace
 				return 0;
 		}
 		return ::DefWindowProc(WindowHandle, Message, wParam, lParam);
-	}
+	}*/
 } // namespace
 
 bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 {
-	// Create application window
-	// ImGui_ImplWin32_EnableDpiAwareness();
-	GUIWindow.WindowClass.cbSize = sizeof(WNDCLASSEX);
-	GUIWindow.WindowClass.style = CS_CLASSDC;
-	GUIWindow.WindowClass.lpfnWndProc = WndProc;
-	GUIWindow.WindowClass.cbClsExtra = 0;
-	GUIWindow.WindowClass.cbWndExtra = sizeof(HGUIWindowExtra);
-	GUIWindow.WindowClass.hInstance = GetModuleHandle(NULL);
-	GUIWindow.WindowClass.hIcon = NULL;
-	GUIWindow.WindowClass.hCursor = NULL;
-	GUIWindow.WindowClass.hbrBackground = NULL;
-	GUIWindow.WindowClass.lpszMenuName = NULL;
-	GUIWindow.WindowClass.lpszClassName = _T("Honey");
-	GUIWindow.WindowClass.hIconSm = NULL;
-	::RegisterClassEx(&GUIWindow.WindowClass);
+	glfwInit();
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	GUIWindow.Window = glfwCreateWindow(500, 500, "Hive", nullptr, nullptr);
 
-	GUIWindow.WindowHandle = CreateWindow(
-		GUIWindow.WindowClass.lpszClassName,
-		_T("Dear ImGui DirectX12 Example"),
-		WS_OVERLAPPEDWINDOW,
-		0,
-		0,
-		GetSystemMetrics(SM_CXSCREEN),
-		GetSystemMetrics(SM_CYSCREEN),
-		NULL,
-		NULL,
-		GUIWindow.WindowClass.hInstance,
-		NULL);
-
-	HGUIWindowExtra GUIWindowExtra = { &GUIWindow };
-	SetWindowLongA(GUIWindow.WindowHandle, 0 * sizeof(uint32_t), GUIWindowExtra.ByteA);
-	SetWindowLongA(GUIWindow.WindowHandle, 1 * sizeof(uint32_t), GUIWindowExtra.ByteB);
+	GUIWindow.WindowHandle = glfwGetWin32Window(GUIWindow.Window);
 
 	GUIWindow.DirectXContext = &DirectXContext;
 
@@ -257,7 +235,7 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	ImGui::StyleColorsDark();
 
 	// Setup Platform/Renderer backends
-	ImGui_ImplWin32_Init(GUIWindow.WindowHandle);
+	ImGui_ImplGlfw_InitForOther(GUIWindow.Window, true);
 	ImGui_ImplDX12_Init(
 		GUIWindow.DirectXContext->Device,
 		HDirectXContext::NUM_FRAMES_IN_FLIGHT,
@@ -271,25 +249,17 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 
 void HImGui::NewFrame(HGUIWindow& GUIWindow, bool& Quit)
 {
-	// Poll and handle messages (inputs, window resize, etc.)
-	// See the WndProc() function below for our to dispatch events to the Win32
-	// backend.
-	MSG Message;
-	while (::PeekMessage(&Message, NULL, 0U, 0U, PM_REMOVE))
-	{
-		::TranslateMessage(&Message);
-		::DispatchMessage(&Message);
-		if (Message.message == WM_QUIT)
-			Quit = true;
-	}
 	if (Quit)
 	{
 		return;
 	}
 
+
+	glfwPollEvents();
+
 	// Start the Dear ImGui frame
 	ImGui_ImplDX12_NewFrame();
-	ImGui_ImplWin32_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 }
 
@@ -322,8 +292,12 @@ void HImGui::DestroyGUIWindow(HGUIWindow& GUIWindow)
 	}
 
 	CleanupDeviceD3D();
-	::DestroyWindow(GUIWindow.WindowHandle);
-	::UnregisterClass(GUIWindow.WindowClass.lpszClassName, GUIWindow.WindowClass.hInstance);
+
+	ImGui_ImplGlfw_Shutdown();
+	ImGui_ImplDX12_Shutdown();
+	ImGui::DestroyContext();
+
+	glfwDestroyWindow(GUIWindow.Window);
 }
 
 HFrameContext* HImGui::WaitForNextFrameResources(HGUIWindow& GUIWindow)

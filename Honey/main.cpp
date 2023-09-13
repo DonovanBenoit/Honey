@@ -85,11 +85,6 @@ int main(int, char**)
 
 	HImGui::WaitForLastSubmittedFrame();
 
-	// Cleanup
-	ImGui_ImplDX12_Shutdown();
-	ImGui_ImplWin32_Shutdown();
-	ImGui::DestroyContext();
-
 	HImGui::DestroyGUIWindow(GUIWindow);
 
 	return 0;

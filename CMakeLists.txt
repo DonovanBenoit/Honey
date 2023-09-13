@@ -22,6 +22,7 @@ endif()
 target_include_directories(Honey PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Libraries/entt/src/)
 
 add_subdirectory(Libraries/glm)
+add_subdirectory(Libraries/glfw)
 add_subdirectory(Libraries/ImGui)
 if (MSVC)
 	add_subdirectory(Libraries/DirectX)
@@ -32,3 +33,6 @@ target_link_libraries(Honey PRIVATE glm)
 if (MSVC)
 	target_link_libraries(Honey PRIVATE DirectX)
 endif()
+
+
+target_link_libraries(Honey PRIVATE glfw)

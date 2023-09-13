@@ -60,7 +60,7 @@ void HHoney::DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity Camer
 		CameraTransform.Translation.y -= CameraSpeed * IO.DeltaTime;
 	}
 
-	RenderComputePass(GUIWindow, RenderWindow.ComputePass, Scene, CameraEntity, Resolution);
+	// RenderComputePass(GUIWindow, RenderWindow.ComputePass, Scene, CameraEntity, Resolution);
 
 	HGUIImage& Image = GUIWindow.Images[RenderWindow.ImageIndex];
 
