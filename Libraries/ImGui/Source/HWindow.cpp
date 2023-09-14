@@ -8,7 +8,6 @@
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
-
 #include <Windows.h>
 #include <directx/d3dx12.h>
 #include <tchar.h>
@@ -23,79 +22,14 @@ void WaitForLastSubmittedFrameBackend();
 namespace
 {
 	HDirectXContext DirectXContext{};
-
-	/*union HGUIWindowExtra
-	{
-		HGUIWindow* GUIWindow;
-		struct
-		{
-			uint32_t ByteA;
-			uint32_t ByteB;
-		};
-	};
-
-	// Win32 message handler
-	// You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if
-	// dear imgui wants to use your inputs.
-	// - When io.WantCaptureMouse is true, do not dispatch mouse input data to your
-	// main application, or clear/overwrite your copy of the mouse data.
-	// - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to
-	// your main application, or clear/overwrite your copy of the keyboard data.
-	// Generally you may always pass all inputs to dear imgui, and hide them from
-	// your application based on those two flags.
-	LRESULT WINAPI WndProc(HWND WindowHandle, UINT Message, WPARAM wParam, LPARAM lParam)
-	{
-		LRESULT ImGuiWndProcResult = ImGui_ImplWin32_WndProcHandler(WindowHandle, Message, wParam, lParam);
-
-		if (ImGui::GetCurrentContext() != nullptr)
-		{
-			ImGuiIO& IO = ImGui::GetIO();
-			if (IO.WantCaptureMouse || IO.WantCaptureKeyboard)
-			{
-				return TRUE;
-			}
-		}
-
-		switch (Message)
-		{
-			case WM_SIZE:
-				if (DirectXContext.Device != NULL && wParam != SIZE_MINIMIZED)
-				{
-					WaitForLastSubmittedFrameBackend();
-
-					HGUIWindowExtra GUIWindowExtra;
-					GUIWindowExtra.ByteA = GetWindowLongA(WindowHandle, 0 * sizeof(uint32_t));
-					GUIWindowExtra.ByteB = GetWindowLongA(WindowHandle, 1 * sizeof(uint32_t));
-
-					HImGui::DestroyRenderTargets(*GUIWindowExtra.GUIWindow);
-
-					HRESULT Result = GUIWindowExtra.GUIWindow->SwapChain.SwapChain->ResizeBuffers(
-						0,
-						(UINT)LOWORD(lParam),
-						(UINT)HIWORD(lParam),
-						DXGI_FORMAT_UNKNOWN,
-						DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT);
-					assert(SUCCEEDED(Result) && "Failed to resize swapchain.");
-					HImGui::CreateRenderTargets(*GUIWindowExtra.GUIWindow);
-				}
-				return 0;
-			case WM_SYSCOMMAND:
-				if ((wParam & 0xfff0) == SC_KEYMENU) // Disable ALT application menu
-					return 0;
-				break;
-			case WM_DESTROY:
-				::PostQuitMessage(0);
-				return 0;
-		}
-		return ::DefWindowProc(WindowHandle, Message, wParam, lParam);
-	}*/
 } // namespace
 
 bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	GUIWindow.Window = glfwCreateWindow(500, 500, "Hive", nullptr, nullptr);
+	GUIWindow.Size = { 500.0f, 500.0f };
+	GUIWindow.Window = glfwCreateWindow(GUIWindow.Size.x, GUIWindow.Size.y, "Hive", nullptr, nullptr);
 
 	GUIWindow.WindowHandle = glfwGetWin32Window(GUIWindow.Window);
 
@@ -249,11 +183,33 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 
 void HImGui::NewFrame(HGUIWindow& GUIWindow, bool& Quit)
 {
+	Quit = Quit || glfwWindowShouldClose(GUIWindow.Window);
 	if (Quit)
 	{
 		return;
 	}
 
+	int32_t Width;
+	int32_t Height;
+	glfwGetWindowSize(GUIWindow.Window, &Width, &Height);
+
+	if (GUIWindow.Size.x != Width || GUIWindow.Size.y != Height)
+	{
+		WaitForLastSubmittedFrameBackend();
+
+		HImGui::DestroyRenderTargets(GUIWindow);
+
+		HRESULT Result = GUIWindow.SwapChain.SwapChain->ResizeBuffers(
+			0,
+			Width,
+			Height,
+			DXGI_FORMAT_UNKNOWN,
+			DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT);
+		assert(SUCCEEDED(Result) && "Failed to resize swapchain.");
+		HImGui::CreateRenderTargets(GUIWindow);
+
+		GUIWindow.Size = { Width, Height };
+	}
 
 	glfwPollEvents();
 

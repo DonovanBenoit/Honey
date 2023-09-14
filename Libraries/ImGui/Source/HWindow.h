@@ -8,6 +8,8 @@
 #include <array>
 #include <vector>
 
+#include <glm/glm.hpp>
+
 #include <Windows.h>
 
 struct GLFWwindow;
@@ -38,6 +40,8 @@ struct HGUIImage
 
 struct HGUIWindow
 {
+	glm::vec2 Size{};
+
 	GLFWwindow* Window = nullptr;
 #ifdef _WIN32
 	HWND WindowHandle;
