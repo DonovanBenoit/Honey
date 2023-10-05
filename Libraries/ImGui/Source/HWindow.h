@@ -40,8 +40,6 @@ struct HGUIImage
 
 struct HGUIWindow
 {
-	glm::vec2 Size{};
-
 	GLFWwindow* Window = nullptr;
 #ifdef _WIN32
 	HWND WindowHandle;
@@ -66,9 +64,12 @@ namespace HImGui
 	bool CreateGUIWindow(HGUIWindow& GUIWindow);
 	void DestroyGUIWindow(HGUIWindow& GUIWindow);
 	void NewFrame(HGUIWindow& GUIWindow, bool& Quit);
+	bool Render(HGUIWindow& GUIWindow);
 
 	void CreateRenderTargets(HGUIWindow& GUIWindow);
 	void DestroyRenderTargets(HGUIWindow& GUIWindow);
+
+	glm::vec2 GetWindowSize(HGUIWindow& GUIWindow);
 
 	HFrameContext* WaitForNextFrameResources(HGUIWindow& GUIWindow);
 	void WaitForLastSubmittedFrame();

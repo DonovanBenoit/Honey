@@ -22,17 +22,31 @@ void WaitForLastSubmittedFrameBackend();
 namespace
 {
 	HDirectXContext DirectXContext{};
+
+	ImVec4 ClearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 } // namespace
 
 bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 {
+	// Create GLFW Window
 	glfwInit();
+	glfwDefaultWindowHints();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	GUIWindow.Size = { 500.0f, 500.0f };
-	GUIWindow.Window = glfwCreateWindow(GUIWindow.Size.x, GUIWindow.Size.y, "Hive", nullptr, nullptr);
+	glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
+	GLFWmonitor* PrimaryMonitor = glfwGetPrimaryMonitor();
+	int32_t XPos;
+	int32_t YPos;
+	int32_t Width;
+	int32_t Height;
+	glfwGetMonitorWorkarea(PrimaryMonitor, &XPos, &YPos, &Width, &Height);
+	glfwWindowHint(GLFW_POSITION_X, XPos);
+	glfwWindowHint(GLFW_POSITION_Y, XPos);
+	GUIWindow.Window = glfwCreateWindow(Width, Height, "Hive", nullptr, nullptr);
 
+	// Get Windows Handle
 	GUIWindow.WindowHandle = glfwGetWin32Window(GUIWindow.Window);
 
+	// Shared DirectX Context
 	GUIWindow.DirectXContext = &DirectXContext;
 
 	// Initialize Direct3D
@@ -51,13 +65,13 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 		HImGui::DestroyGUIWindow(GUIWindow);
 		return false;
 	}
-	SIZE_T rtvDescriptorSize =
+	SIZE_T RTVDescriptorSize =
 		GUIWindow.DirectXContext->Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = GUIWindow.RTV_DescHeap->GetCPUDescriptorHandleForHeapStart();
+	D3D12_CPU_DESCRIPTOR_HANDLE RTVHandle = GUIWindow.RTV_DescHeap->GetCPUDescriptorHandleForHeapStart();
 	for (UINT i = 0; i < HGUIWindow::NUM_BACK_BUFFERS; i++)
 	{
-		GUIWindow.RenderTargetDescriptor[i] = rtvHandle;
-		rtvHandle.ptr += rtvDescriptorSize;
+		GUIWindow.RenderTargetDescriptor[i] = RTVHandle;
+		RTVHandle.ptr += RTVDescriptorSize;
 	}
 
 	// CBVSRVUAV
@@ -189,26 +203,32 @@ void HImGui::NewFrame(HGUIWindow& GUIWindow, bool& Quit)
 		return;
 	}
 
-	int32_t Width;
-	int32_t Height;
-	glfwGetWindowSize(GUIWindow.Window, &Width, &Height);
-
-	if (GUIWindow.Size.x != Width || GUIWindow.Size.y != Height)
+	// Resize Windows if Necessary
+	int32_t WindowWidth;
+	int32_t WindowHeight;
+	glfwGetWindowSize(GUIWindow.Window, &WindowWidth, &WindowHeight);
+	DXGI_SWAP_CHAIN_DESC1 SwapChainDesc;
+	HRESULT Result = GUIWindow.SwapChain.SwapChain->GetDesc1(&SwapChainDesc);
+	if (FAILED(Result))
 	{
+		Quit = true;
+		return;
+	}
+	if (SwapChainDesc.Width != WindowWidth || SwapChainDesc.Height != WindowHeight)
+	{
+		// Wait for previous frames to finish rendering
 		WaitForLastSubmittedFrameBackend();
 
 		HImGui::DestroyRenderTargets(GUIWindow);
 
 		HRESULT Result = GUIWindow.SwapChain.SwapChain->ResizeBuffers(
 			0,
-			Width,
-			Height,
+			WindowWidth,
+			WindowHeight,
 			DXGI_FORMAT_UNKNOWN,
 			DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT);
 		assert(SUCCEEDED(Result) && "Failed to resize swapchain.");
 		HImGui::CreateRenderTargets(GUIWindow);
-
-		GUIWindow.Size = { Width, Height };
 	}
 
 	glfwPollEvents();
@@ -217,6 +237,68 @@ void HImGui::NewFrame(HGUIWindow& GUIWindow, bool& Quit)
 	ImGui_ImplDX12_NewFrame();
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
+}
+
+bool HImGui::Render(HGUIWindow& GUIWindow)
+{
+	// Rendering
+	ImGui::Render();
+
+	HFrameContext* FrameContext = HImGui::WaitForNextFrameResources(GUIWindow);
+	UINT BackBufferIndex = GUIWindow.SwapChain.SwapChain->GetCurrentBackBufferIndex();
+
+	// Reset Command Allocator
+	FrameContext->CommandAllocator->Reset();
+	GUIWindow.DirectXContext->CommandList->Reset(FrameContext->CommandAllocator, NULL);
+
+	// Render Target Transition Barrier
+	D3D12_RESOURCE_BARRIER RenderTargetBarrier = {};
+	RenderTargetBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	RenderTargetBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	RenderTargetBarrier.Transition.pResource = GUIWindow.RenderTargetResource[BackBufferIndex];
+	RenderTargetBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+	// Transition To Render Target
+	RenderTargetBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+	RenderTargetBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	GUIWindow.DirectXContext->CommandList->ResourceBarrier(1, &RenderTargetBarrier);
+
+	// Render Dear ImGui graphics
+	GUIWindow.DirectXContext->CommandList->ClearRenderTargetView(
+		GUIWindow.RenderTargetDescriptor[BackBufferIndex],
+		reinterpret_cast<float*>(&ClearColor),
+		0,
+		NULL);
+	GUIWindow.DirectXContext->CommandList
+		->OMSetRenderTargets(1, &GUIWindow.RenderTargetDescriptor[BackBufferIndex], FALSE, NULL);
+	GUIWindow.DirectXContext->CommandList->SetDescriptorHeaps(1, &GUIWindow.CBVSRVUAV_DescHeap);
+	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), GUIWindow.DirectXContext->CommandList);
+
+	// Transition To Present
+	RenderTargetBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	RenderTargetBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+	GUIWindow.DirectXContext->CommandList->ResourceBarrier(1, &RenderTargetBarrier);
+
+	// Close and execute command lists
+	GUIWindow.DirectXContext->CommandList->Close();
+	GUIWindow.DirectXContext->CommandQueue->ExecuteCommandLists(
+		1,
+		(ID3D12CommandList* const*)&GUIWindow.DirectXContext->CommandList);
+
+	// Wait for the commands to finish executing
+	if (!HDirectX::SignalFence(
+			GUIWindow.DirectXContext->CommandQueue,
+			GUIWindow.DirectXContext->Fence,
+			FrameContext->FenceValue))
+	{
+		return false;
+	}
+	HDirectX::WaitForFence(GUIWindow.DirectXContext->Fence, GUIWindow.DirectXContext->Fence.LastSignaledValue);
+
+	// Present with vsync
+	GUIWindow.SwapChain.SwapChain->Present(1, 0);
+
+	return true;
 }
 
 void HImGui::DestroyGUIWindow(HGUIWindow& GUIWindow)
@@ -258,25 +340,26 @@ void HImGui::DestroyGUIWindow(HGUIWindow& GUIWindow)
 
 HFrameContext* HImGui::WaitForNextFrameResources(HGUIWindow& GUIWindow)
 {
-	UINT nextFrameIndex = DirectXContext.FrameIndex + 1;
-	DirectXContext.FrameIndex = nextFrameIndex;
+	UINT NextFrameIndex = DirectXContext.FrameIndex + 1;
+	DirectXContext.FrameIndex = NextFrameIndex;
 
-	HANDLE waitableObjects[] = { GUIWindow.SwapChain.SwapChainWaitableObject, NULL };
-	DWORD numWaitableObjects = 1;
+	HANDLE WaitableObjects[] = { GUIWindow.SwapChain.SwapChainWaitableObject, NULL };
+	DWORD NumWaitableObjects = 1;
 
-	HFrameContext* frameCtx = &DirectXContext.FrameContext[nextFrameIndex % HDirectXContext::NUM_FRAMES_IN_FLIGHT];
-	UINT64 fenceValue = frameCtx->FenceValue;
-	if (fenceValue != 0) // means no fence was signaled
+	HFrameContext* FrameContext = &DirectXContext.FrameContext[NextFrameIndex % HDirectXContext::NUM_FRAMES_IN_FLIGHT];
+	UINT64 FenceValue = FrameContext->FenceValue;
+	// if FenceValue == 0, no fence was signaled (i.e. First frame)
+	if (FenceValue != 0)
 	{
-		frameCtx->FenceValue = 0;
-		DirectXContext.Fence.Fence->SetEventOnCompletion(fenceValue, DirectXContext.Fence.FenceEvent);
-		waitableObjects[1] = DirectXContext.Fence.FenceEvent;
-		numWaitableObjects = 2;
+		FrameContext->FenceValue = 0;
+		DirectXContext.Fence.Fence->SetEventOnCompletion(FenceValue, DirectXContext.Fence.FenceEvent);
+		WaitableObjects[1] = DirectXContext.Fence.FenceEvent;
+		NumWaitableObjects = 2;
 	}
 
-	WaitForMultipleObjects(numWaitableObjects, waitableObjects, TRUE, INFINITE);
+	WaitForMultipleObjects(NumWaitableObjects, WaitableObjects, TRUE, INFINITE);
 
-	return frameCtx;
+	return FrameContext;
 }
 
 void HImGui::WaitForLastSubmittedFrame()
@@ -320,7 +403,7 @@ void CleanupDeviceD3D()
 	IDXGIDebug1* pDebug = NULL;
 	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&pDebug))))
 	{
-		pDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_SUMMARY);
+		pDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_DETAIL);
 		pDebug->Release();
 	}
 #endif
@@ -347,6 +430,14 @@ void HImGui::DestroyRenderTargets(HGUIWindow& GUIWindow)
 			GUIWindow.RenderTargetResource[i] = nullptr;
 		}
 	}
+}
+
+glm::vec2 HImGui::GetWindowSize(HGUIWindow& GUIWindow)
+{
+	int32_t WindowWidth;
+	int32_t WindowHeight;
+	glfwGetWindowSize(GUIWindow.Window, &WindowWidth, &WindowHeight);
+	return glm::vec2(WindowWidth, WindowHeight);
 }
 
 void WaitForLastSubmittedFrameBackend()
