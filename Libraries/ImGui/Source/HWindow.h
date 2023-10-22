@@ -34,8 +34,7 @@ struct HGUIImage
 		void* UploadData = nullptr;
 		uint8_t* UploadBytes;
 	};
-	D3D12_CPU_DESCRIPTOR_HANDLE SRV_CPU_DescriptorHandle = {};
-	D3D12_GPU_DESCRIPTOR_HANDLE SRV_GPU_DescriptorHandle = {};
+	HDescriptor Descriptor{};
 };
 
 struct HGUIWindow
@@ -46,7 +45,9 @@ struct HGUIWindow
 	HDirectXContext* DirectXContext = nullptr;
 
 	ID3D12DescriptorHeap* RTV_DescHeap = nullptr;
-	ID3D12DescriptorHeap* CBVSRVUAV_DescHeap = nullptr;
+	HDescriptorHeap CBVSRVUAV_DescHeap{};
+
+	HDescriptor ImGuiDescriptor{};
 
 	static int32_t const NUM_BACK_BUFFERS = 3;
 	ID3D12Resource* RenderTargetResource[NUM_BACK_BUFFERS] = {};
@@ -54,7 +55,7 @@ struct HGUIWindow
 	HSwapChain SwapChain{};
 #endif // _WIN32
 
-	size_t ImageCount = 0;
+	int64_t ImageCount = 0;
 	std::array<HGUIImage, 1024 - 1> Images = {};
 	std::vector<size_t> ImageRecycling{};
 };

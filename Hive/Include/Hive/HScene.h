@@ -1,5 +1,7 @@
 #pragma once
 
+#include <HDirectX.h>
+
 #include <entt/entt.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtx/quaternion.hpp>
@@ -24,6 +26,16 @@ struct HMesh
 
 	// 3 * TriangleCount in size
 	std::vector<uint32_t> Indicies;
+};
+
+struct HTexture
+{
+	uint64_t Version = 0;
+	std::vector<uint8_t> Data{};
+	glm::uvec2 Resolution{};
+
+	HResource Resource{};
+	HDescriptor Descriptor{};
 };
 
 struct HRenderedSphere
@@ -68,29 +80,34 @@ struct HPointLight
 struct HRelativeTransform
 {
 	glm::dvec3 Translation = {};
-	glm::dvec3 Rotation = { 0.0f, 0.0f, 0.0 };
+	glm::dquat Rotation = glm::angleAxis(0.0, glm::dvec3{ 0.0, 1.0, 0.0 });
+	glm::dvec3 Scale = { 1.0, 1.0, 1.0 };
 };
 
 struct HWorldTransform
 {
-	glm::vec3 Translation = {};
-	glm::quat Rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+	glm::dvec3 Translation = {};
+	glm::dquat Rotation = glm::angleAxis(0.0, glm::dvec3{ 0.0, 1.0, 0.0 });
+	glm::dvec3 Scale = { 1.0, 1.0, 1.0 };
+};
+
+struct HNode
+{
+	entt::entity Parent = entt::null;
+	entt::entity FirstChild = entt::null;
+	entt::entity LeftSibbling = entt::null;
+	entt::entity RightSibbling = entt::null;
 };
 
 struct HScene
 {
 	entt::registry Registry{};
 
-	entt::entity RootEntity = Registry.create();
-
-	std::vector<entt::entity> Cameras{};
-	std::vector<entt::entity> Spheres{};
-	std::vector<entt::entity> PointLights{};
-
 	entt::entity CreateCamera();
 	entt::entity CreateSphere();
 	entt::entity CreateSDF();
 	entt::entity CreatePointLight();
+	entt::entity CreateTexture(const glm::uvec2& Resolution);
 
 	template<typename T>
 	T& Get(entt::entity Entity)
@@ -98,16 +115,32 @@ struct HScene
 		return Registry.get<T>(Entity);
 	}
 
+	template<typename T>
+	bool Has(entt::entity Entity)
+	{
+		return Registry.any_of<T>(Entity);
+	}
+
 	std::vector<HSDF> RenderedSDFs{};
-
 	std::vector<HRenderedSphere> RenderedSpheres{};
-
 	std::vector<HMaterial> RenderedMaterials{};
+	std::vector<HTexture> Textures;
 };
 
 namespace HHoney
 {
-	void DefaultScene(HScene& Scene);
-
 	void UpdateScene(HScene& Scene, entt::entity CameraEntity);
+
+	void SceneEditor(HScene& Scene);
+
+	template<typename T>
+	void DetailsPanel(T& Component)
+	{
+	}
+
+	void DetailsPanel(HCamera& Camera);
+
+	void DetailsPanel(HRelativeTransform& RelativeTransform);
+
+	void DetailsPanel(HTexture& Texture);
 } // namespace HHoney

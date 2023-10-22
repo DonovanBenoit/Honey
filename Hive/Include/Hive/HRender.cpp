@@ -66,18 +66,18 @@ void HHoney::DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity Camer
 
 	SIZE_T CBVSRVUAV_DescriptorSize =
 		GUIWindow.DirectXContext->Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	D3D12_CPU_DESCRIPTOR_HANDLE CBVSRVUAV_Handle = GUIWindow.CBVSRVUAV_DescHeap->GetCPUDescriptorHandleForHeapStart();
-	CBVSRVUAV_Handle.ptr += (RenderWindow.ImageIndex + 1) * CBVSRVUAV_DescriptorSize;
+	//D3D12_CPU_DESCRIPTOR_HANDLE CBVSRVUAV_Handle = GUIWindow.CBVSRVUAV_DescHeap->GetCPUDescriptorHandleForHeapStart();
+	//CBVSRVUAV_Handle.ptr += (RenderWindow.ImageIndex + 1) * CBVSRVUAV_DescriptorSize;
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC SRVDescriptor{};
 	SRVDescriptor.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	SRVDescriptor.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	SRVDescriptor.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	SRVDescriptor.Texture2D.MipLevels = 1;
-	GUIWindow.DirectXContext->Device->CreateShaderResourceView(
+	/*GUIWindow.DirectXContext->Device->CreateShaderResourceView(
 		RenderWindow.ComputePass.OutputResource,
 		&SRVDescriptor,
-		CBVSRVUAV_Handle);
+		CBVSRVUAV_Handle);*/
 
 	std::chrono::time_point End = std::chrono::high_resolution_clock::now();
 
@@ -108,7 +108,7 @@ void HRootSignature::AddRootParameter(std::string_view Name, HRootParameterType 
 		{
 			RootParameter.ShaderRegister = UAVRegisterCount;
 			UAVRegisterCount++;
-			RootParameter.DescriptorRangeOffset = DescriptorRanges.size();
+			RootParameter.DescriptorRangeOffset = static_cast<uint32_t>(DescriptorRanges.size());
 			CD3DX12_DESCRIPTOR_RANGE& DescriptorRange = DescriptorRanges.emplace_back();
 			DescriptorRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, RootParameter.ShaderRegister);
 		}
@@ -217,7 +217,7 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 
 	// Output
 	{
-		if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
+		/*if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
 				&ComputePass.OutputResource,
 				GUIWindow.DirectXContext->Device,
 				ComputePass.Resolution))
@@ -232,7 +232,7 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 				GUIWindow.DirectXContext->Device))
 		{
 			return false;
-		}
+		}*/
 	}
 
 	// Spheres
@@ -394,7 +394,7 @@ bool HHoney::RenderComputePass(
 		HDirectX::WaitForFence(ComputePass.Fence, ComputePass.FenceValue);
 
 		ComputePass.Resolution = Resolution;
-		if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
+		/*if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
 				&ComputePass.OutputResource,
 				GUIWindow.DirectXContext->Device,
 				Resolution))

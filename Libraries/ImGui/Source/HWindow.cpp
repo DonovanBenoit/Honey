@@ -75,11 +75,13 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	}
 
 	// CBVSRVUAV
-	if (!HDirectX::CreateCBVSRVUAVHeap(&GUIWindow.CBVSRVUAV_DescHeap, GUIWindow.DirectXContext->Device, 1024))
+	if (!HDirectX::CreateCBVSRVUAVHeap(GUIWindow.CBVSRVUAV_DescHeap, GUIWindow.DirectXContext->Device, 1000000))
 	{
 		HImGui::DestroyGUIWindow(GUIWindow);
 		return false;
 	}
+
+	GUIWindow.ImGuiDescriptor = GUIWindow.CBVSRVUAV_DescHeap.AllocateDescriptor();
 
 	// Command Queue
 	if (!HDirectX::CreateCommandQueue(
@@ -182,15 +184,17 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
 
+	ImFont* Font = ImGui::GetIO().Fonts->AddFontFromFileTTF("C://Windows//Fonts//Consola.ttf", 14);
+
 	// Setup Platform/Renderer backends
 	ImGui_ImplGlfw_InitForOther(GUIWindow.Window, true);
 	ImGui_ImplDX12_Init(
 		GUIWindow.DirectXContext->Device,
 		HDirectXContext::NUM_FRAMES_IN_FLIGHT,
 		DXGI_FORMAT_R8G8B8A8_UNORM,
-		GUIWindow.CBVSRVUAV_DescHeap,
-		GUIWindow.CBVSRVUAV_DescHeap->GetCPUDescriptorHandleForHeapStart(),
-		GUIWindow.CBVSRVUAV_DescHeap->GetGPUDescriptorHandleForHeapStart());
+		GUIWindow.CBVSRVUAV_DescHeap.DescriptorHeap,
+		GUIWindow.ImGuiDescriptor.CPUDescriptorHandle,
+		GUIWindow.ImGuiDescriptor.GPUDescriptorHandle);
 
 	return true;
 }
@@ -271,7 +275,7 @@ bool HImGui::Render(HGUIWindow& GUIWindow)
 		NULL);
 	GUIWindow.DirectXContext->CommandList
 		->OMSetRenderTargets(1, &GUIWindow.RenderTargetDescriptor[BackBufferIndex], FALSE, NULL);
-	GUIWindow.DirectXContext->CommandList->SetDescriptorHeaps(1, &GUIWindow.CBVSRVUAV_DescHeap);
+	GUIWindow.DirectXContext->CommandList->SetDescriptorHeaps(1, &GUIWindow.CBVSRVUAV_DescHeap.DescriptorHeap);
 	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), GUIWindow.DirectXContext->CommandList);
 
 	// Transition To Present
@@ -323,11 +327,7 @@ void HImGui::DestroyGUIWindow(HGUIWindow& GUIWindow)
 		GUIWindow.RTV_DescHeap->Release();
 		GUIWindow.RTV_DescHeap = nullptr;
 	}
-	if (GUIWindow.CBVSRVUAV_DescHeap != nullptr)
-	{
-		GUIWindow.CBVSRVUAV_DescHeap->Release();
-		GUIWindow.CBVSRVUAV_DescHeap = nullptr;
-	}
+	GUIWindow.CBVSRVUAV_DescHeap.Release();
 
 	CleanupDeviceD3D();
 
@@ -475,6 +475,10 @@ bool HImGui::CreateOrUpdateImage(HGUIWindow& GUIWindow, int64_t& ImageIndex, uin
 	}
 
 	HGUIImage& GUIImage = GUIWindow.Images[ImageIndex];
+	if (GUIImage.Descriptor.CPUDescriptorHandle.ptr == 0)
+	{
+		GUIImage.Descriptor = GUIWindow.CBVSRVUAV_DescHeap.AllocateDescriptor();
+	}
 
 	const bool Resize = GUIImage.Width != Width || GUIImage.Height != Height;
 	GUIImage.Width = Width;
@@ -506,10 +510,13 @@ bool HImGui::CreateOrUpdateImage(HGUIWindow& GUIWindow, int64_t& ImageIndex, uin
 	return true;
 }
 
-uint64_t CalculateAlignedSize(uint64_t Size, uint64_t Alignment)
+namespace
 {
-	return Size + (Alignment - (Size % Alignment)) % Alignment;
-}
+	uint64_t CalculateAlignedSize(uint64_t Size, uint64_t Alignment)
+	{
+		return Size + (Alignment - (Size % Alignment)) % Alignment;
+	}
+} // namespace
 
 bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex)
 {
@@ -588,18 +595,15 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex)
 			GUIImage.UploadResource->Map(0, &UploadRange, &GUIImage.UploadData);
 		}
 
-		SIZE_T CBVSRVUAV_DescriptorSize =
-			GUIWindow.DirectXContext->Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-		D3D12_CPU_DESCRIPTOR_HANDLE CBVSRVUAV_Handle =
-			GUIWindow.CBVSRVUAV_DescHeap->GetCPUDescriptorHandleForHeapStart();
-		CBVSRVUAV_Handle.ptr += (ImageIndex + 1) * CBVSRVUAV_DescriptorSize;
-
 		D3D12_SHADER_RESOURCE_VIEW_DESC SRVDescriptor{};
 		SRVDescriptor.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		SRVDescriptor.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		SRVDescriptor.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 		SRVDescriptor.Texture2D.MipLevels = 1;
-		GUIWindow.DirectXContext->Device->CreateShaderResourceView(GUIImage.Resource, &SRVDescriptor, CBVSRVUAV_Handle);
+		GUIWindow.DirectXContext->Device->CreateShaderResourceView(
+			GUIImage.Resource,
+			&SRVDescriptor,
+			GUIImage.Descriptor.CPUDescriptorHandle);
 	}
 	else
 	{
@@ -661,12 +665,6 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex)
 				GUIImage.UploadResource->Map(0, &UploadRange, &GUIImage.UploadData);
 			}
 
-			SIZE_T CBVSRVUAV_DescriptorSize = GUIWindow.DirectXContext->Device->GetDescriptorHandleIncrementSize(
-				D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			D3D12_CPU_DESCRIPTOR_HANDLE CBVSRVUAV_Handle =
-				GUIWindow.CBVSRVUAV_DescHeap->GetCPUDescriptorHandleForHeapStart();
-			CBVSRVUAV_Handle.ptr += (ImageIndex + 1) * CBVSRVUAV_DescriptorSize;
-
 			D3D12_SHADER_RESOURCE_VIEW_DESC SRVDescriptor{};
 			SRVDescriptor.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 			SRVDescriptor.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -675,7 +673,7 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex)
 			GUIWindow.DirectXContext->Device->CreateShaderResourceView(
 				GUIImage.Resource,
 				&SRVDescriptor,
-				CBVSRVUAV_Handle);
+				GUIImage.Descriptor.CPUDescriptorHandle);
 		}
 	}
 
@@ -740,13 +738,8 @@ void HImGui::DrawImage(HGUIWindow& GUIWindow, int64_t ImageIndex)
 
 	HGUIImage& GUIImage = GUIWindow.Images[ImageIndex];
 
-	SIZE_T CBVSRVUAV_DescriptorSize =
-		GUIWindow.DirectXContext->Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	D3D12_GPU_DESCRIPTOR_HANDLE CBVSRVUAV_Handle = GUIWindow.CBVSRVUAV_DescHeap->GetGPUDescriptorHandleForHeapStart();
-	CBVSRVUAV_Handle.ptr += (ImageIndex + 1) * CBVSRVUAV_DescriptorSize;
-
 	ImGui::Image(
-		reinterpret_cast<ImTextureID>(CBVSRVUAV_Handle.ptr),
+		reinterpret_cast<ImTextureID>(GUIImage.Descriptor.GPUDescriptorHandle.ptr),
 		ImVec2{ static_cast<float>(GUIImage.Width), static_cast<float>(GUIImage.Height) });
 }
 

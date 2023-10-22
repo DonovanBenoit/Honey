@@ -59,18 +59,20 @@ bool HDirectX::CreateRTVHeap(ID3D12DescriptorHeap** RTVDescHeap, ID3D12Device* D
 }
 
 bool HDirectX::CreateCBVSRVUAVHeap(
-	ID3D12DescriptorHeap** CBVSRVUAVDescHeap,
+	HDescriptorHeap& CBVSRVUAVDescHeap,
 	ID3D12Device* Device,
 	uint32_t DescriptorCount)
 {
-	D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-	desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	desc.NumDescriptors = DescriptorCount;
-	desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	if (Device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(CBVSRVUAVDescHeap)) != S_OK)
+	D3D12_DESCRIPTOR_HEAP_DESC DescriptorHeapDesc = {};
+	DescriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	DescriptorHeapDesc.NumDescriptors = DescriptorCount;
+	DescriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	if (Device->CreateDescriptorHeap(&DescriptorHeapDesc, IID_PPV_ARGS(&CBVSRVUAVDescHeap.DescriptorHeap)) != S_OK)
 	{
 		return false;
 	}
+
+	CBVSRVUAVDescHeap.HeapIncrementSize = Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	return true;
 }
@@ -205,21 +207,21 @@ bool HDirectX::CreateComputePipelineState(
 }
 
 bool HDirectX::CreateOrUpdateUnorderedTextureResource(
-	ID3D12Resource** Resource,
+	HResource& Resource,
 	ID3D12Device* Device,
 	const glm::uvec2& Resolution,
 	DXGI_FORMAT Format)
 {
-	if (*Resource != nullptr)
+	if (Resource.Resource != nullptr)
 	{
-		D3D12_RESOURCE_DESC TextureDesc = (*Resource)->GetDesc();
+		D3D12_RESOURCE_DESC TextureDesc = (Resource.Resource)->GetDesc();
 		if (TextureDesc.Width == Resolution.x && TextureDesc.Height == Resolution.y)
 		{
 			return true;
 		}
 
-		ULONG Count = (*Resource)->Release();
-		(*Resource) = nullptr;
+		ULONG Count = (Resource.Resource)->Release();
+		(Resource.Resource) = nullptr;
 	}
 
 	assert(Resolution.x > 0);
@@ -246,7 +248,7 @@ bool HDirectX::CreateOrUpdateUnorderedTextureResource(
 		&TextureDesc,
 		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 		nullptr,
-		IID_PPV_ARGS(Resource));
+		IID_PPV_ARGS(&Resource.Resource));
 
 	return SUCCEEDED(Result);
 }

@@ -15,7 +15,6 @@ int main(int, char**)
 
 	// Our state
 	HScene Scene{};
-	HHoney::DefaultScene(Scene);
 	HRenderWindow RenderWindow{};
 
 	ImVec4 ClearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
@@ -34,7 +33,7 @@ int main(int, char**)
 		GUIWindow.SwapChain.SwapChain->GetDesc(&SwapChainDeesc);
 		HHoney::DrawHoney({ SwapChainDeesc.BufferDesc.Width, SwapChainDeesc.BufferDesc.Height }, GUIWindow, Scene, RenderWindow);
 
-		HHoney::UpdateScene(Scene, Scene.Cameras[0]);
+		// HHoney::UpdateScene(Scene, Scene.Cameras[0]);
 
 		// Rendering
 		ImGui::Render();
@@ -61,7 +60,7 @@ int main(int, char**)
 			NULL);
 		GUIWindow.DirectXContext->CommandList
 			->OMSetRenderTargets(1, &GUIWindow.RenderTargetDescriptor[backBufferIdx], FALSE, NULL);
-		GUIWindow.DirectXContext->CommandList->SetDescriptorHeaps(1, &GUIWindow.CBVSRVUAV_DescHeap);
+		GUIWindow.DirectXContext->CommandList->SetDescriptorHeaps(1, &GUIWindow.CBVSRVUAV_DescHeap.DescriptorHeap);
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), GUIWindow.DirectXContext->CommandList);
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;

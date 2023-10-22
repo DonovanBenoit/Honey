@@ -1,11 +1,14 @@
 #include "HScene.h"
 
+#include <HImGui.h>
+#include <format>
 #include <glm/gtc/random.hpp>
 #include <glm/gtx/color_space.hpp>
+#include <imgui.h>
 
 entt::entity HScene::CreateCamera()
 {
-	entt::entity CameraEntity = Cameras.emplace_back(Registry.create());
+	entt::entity CameraEntity = Registry.create();
 	HCamera& Camera = Registry.emplace<HCamera>(CameraEntity);
 	HWorldTransform& WorldTransform = Registry.emplace<HWorldTransform>(CameraEntity);
 	HRelativeTransform& RelativeTransform = Registry.emplace<HRelativeTransform>(CameraEntity);
@@ -14,7 +17,7 @@ entt::entity HScene::CreateCamera()
 
 entt::entity HScene::CreateSphere()
 {
-	entt::entity SphereEntity = Spheres.emplace_back(Registry.create());
+	entt::entity SphereEntity = Registry.create();
 	HSphere& Sphere = Registry.emplace<HSphere>(SphereEntity);
 	HWorldTransform& WorldTransform = Registry.emplace<HWorldTransform>(SphereEntity);
 	HRelativeTransform& RelativeTransform = Registry.emplace<HRelativeTransform>(SphereEntity);
@@ -26,7 +29,7 @@ entt::entity HScene::CreateSphere()
 
 entt::entity HScene::CreateSDF()
 {
-	entt::entity SDFEntity = Spheres.emplace_back(Registry.create());
+	entt::entity SDFEntity = Registry.create();
 	HSDF& SDF = Registry.emplace<HSDF>(SDFEntity);
 	HWorldTransform& WorldTransform = Registry.emplace<HWorldTransform>(SDFEntity);
 	HRelativeTransform& RelativeTransform = Registry.emplace<HRelativeTransform>(SDFEntity);
@@ -37,54 +40,20 @@ entt::entity HScene::CreateSDF()
 
 entt::entity HScene::CreatePointLight()
 {
-	entt::entity PointLightEntity = PointLights.emplace_back(Registry.create());
-	HPointLight& PointLight = Registry.emplace<HPointLight>(PointLightEntity);
-	HWorldTransform& WorldTransform = Registry.emplace<HWorldTransform>(PointLightEntity);
-	HRelativeTransform& RelativeTransform = Registry.emplace<HRelativeTransform>(PointLightEntity);
-	return PointLightEntity;
+	entt::entity Entity = Registry.create();
+	HPointLight& PointLight = Registry.emplace<HPointLight>(Entity);
+	HWorldTransform& WorldTransform = Registry.emplace<HWorldTransform>(Entity);
+	HRelativeTransform& RelativeTransform = Registry.emplace<HRelativeTransform>(Entity);
+	return Entity;
 }
 
-void HHoney::DefaultScene(HScene& Scene)
+entt::entity HScene::CreateTexture(const glm::uvec2& Resolution)
 {
-	srand(1925);
-
-	entt::entity CameraEntity = Scene.CreateCamera();
-	HRelativeTransform& CameraTransform = Scene.Get<HRelativeTransform>(CameraEntity);
-	CameraTransform.Translation = { 0.0, 0.0, -10.0 };
-	HCamera& Camera = Scene.Get<HCamera>(CameraEntity);
-	Camera.FocalLength = 0.5f;
-
-	entt::entity PointLightEntity = Scene.CreatePointLight();
-	HRelativeTransform& PointLightTransform = Scene.Get<HRelativeTransform>(PointLightEntity);
-	PointLightTransform.Translation = { 0.0, -1.0, -4.0 };
-
-	int32_t SphereCount = 128;
-	for (int32_t SphereIndex = 0; SphereIndex < SphereCount; SphereIndex++)
-	{
-		entt::entity SphereEntity = Scene.CreateSphere();
-		HMaterial& Material = Scene.Get<HMaterial>(SphereEntity);
-		HRelativeTransform& RelativeTransform = Scene.Get<HRelativeTransform>(SphereEntity);
-		HSphere& Sphere = Scene.Get<HSphere>(SphereEntity);
-
-		Sphere.Radius = glm::linearRand(0.2f, 2.0f);
-		RelativeTransform.Translation = glm::sphericalRand(1.0f) * glm::linearRand(0.1f, 10.0f);
-
-		Material.Albedo = glm::abs(glm::sphericalRand(1.0f));
-	}
-
-	int32_t SDFCount = 128;
-	for (int32_t SDFIndex = 0; SDFIndex < SDFCount; SDFIndex++)
-	{
-		entt::entity SDFEntity = Scene.CreateSDF();
-		HMaterial& Material = Scene.Get<HMaterial>(SDFEntity);
-		HRelativeTransform& RelativeTransform = Scene.Get<HRelativeTransform>(SDFEntity);
-		HSDF& SDF = Scene.Get<HSDF>(SDFEntity);
-
-		SDF.PositionRadius.a = glm::linearRand(0.2f, 2.0f);
-		RelativeTransform.Translation = glm::sphericalRand(1.0f) * glm::linearRand(0.1f, 10.0f);
-
-		Material.Albedo = glm::abs(glm::sphericalRand(1.0f));
-	}
+	entt::entity Entity = Registry.create();
+	HTexture& Texture = Registry.emplace<HTexture>(Entity);
+	Texture.Resolution = Resolution;
+	Texture.Data.resize(Resolution.x * Resolution.y * 4);
+	return Entity;
 }
 
 void HHoney::UpdateScene(HScene& Scene, entt::entity CameraEntity)
@@ -96,7 +65,7 @@ void HHoney::UpdateScene(HScene& Scene, entt::entity CameraEntity)
 		HWorldTransform& WorldTransform = Scene.Get<HWorldTransform>(TransformEntity);
 
 		WorldTransform.Translation = RelativeTransform.Translation;
-		WorldTransform.Rotation = glm::quat(RelativeTransform.Rotation);
+		WorldTransform.Rotation = RelativeTransform.Rotation;
 	}
 
 	const HWorldTransform& CameraTransform = Scene.Get<HWorldTransform>(CameraEntity);
@@ -108,7 +77,8 @@ void HHoney::UpdateScene(HScene& Scene, entt::entity CameraEntity)
 			HRenderedSphere& RenderedSphere = Scene.RenderedSpheres[SphereIndex++];
 			RenderedSphere.RadiusSquared = Sphere.Radius * Sphere.Radius;
 			RenderedSphere.SphereCenter = glm::vec4(WorldTransform.Translation, 0.0f);
-			RenderedSphere.RayOriginToSphereCenter = glm::vec4(WorldTransform.Translation - CameraTransform.Translation, 0.0f);
+			RenderedSphere.RayOriginToSphereCenter =
+				glm::vec4(WorldTransform.Translation - CameraTransform.Translation, 0.0f);
 			RenderedSphere.MaterialIndex = MaterialIndex;
 			Scene.RenderedMaterials[MaterialIndex++] = Material;
 		});
@@ -120,4 +90,84 @@ void HHoney::UpdateScene(HScene& Scene, entt::entity CameraEntity)
 			SDF.PositionRadius = glm::vec4(WorldTransform.Translation, SDF.PositionRadius.a);
 			Scene.RenderedSDFs.push_back(SDF);
 		});
+}
+
+void HHoney::SceneEditor(HScene& Scene)
+{
+	ImGui::Text("Cameras");
+
+	static entt::entity SelectedEntity = entt::null;
+
+	Scene.Registry.view<HCamera>().each([&](entt::entity Entity, HCamera& Camera) {
+		if (ImGui::TreeNodeEx(std::format("Camera_{}", (uint32_t)Entity).c_str(), ImGuiTreeNodeFlags_Leaf))
+		{
+			if (ImGui::IsItemClicked())
+			{
+				SelectedEntity = Entity;
+			}
+			ImGui::TreePop();
+		}
+	});
+
+	ImGui::Text("Materials");
+
+	ImGui::Text("Textures");
+	Scene.Registry.view<HTexture>().each([&](entt::entity Entity, HTexture& Texture) {
+		if (ImGui::TreeNodeEx(std::format("Texture_{}", (uint32_t)Entity).c_str(), ImGuiTreeNodeFlags_Leaf))
+		{
+			if (ImGui::IsItemClicked())
+			{
+				SelectedEntity = Entity;
+			}
+			ImGui::TreePop();
+		}
+	});
+
+	ImGui::Text("Details");
+
+	if (SelectedEntity != entt::null)
+	{
+		// Camera
+		if (Scene.Has<HCamera>(SelectedEntity))
+		{
+			DetailsPanel(Scene.Get<HCamera>(SelectedEntity));
+		}
+
+		// Transform
+		if (Scene.Has<HRelativeTransform>(SelectedEntity))
+		{
+			DetailsPanel(Scene.Get<HRelativeTransform>(SelectedEntity));
+		}
+
+		// Texture
+		if (Scene.Has<HTexture>(SelectedEntity))
+		{
+			DetailsPanel(Scene.Get<HTexture>(SelectedEntity));
+		}
+	}
+}
+
+void HHoney::DetailsPanel(HCamera& Camera)
+{
+	ImGui::Text("Camera");
+	ImGui::SliderFloat("Focal Length", &Camera.FocalLength, 0.01f, 4.0f);
+}
+
+void HHoney::DetailsPanel(HRelativeTransform& RelativeTransform)
+{
+	ImGui::Text("RelativeTransform");
+	ImGui::SliderDouble3("Translation", &RelativeTransform.Translation.x, -10.0, 10.0);
+}
+
+void HHoney::DetailsPanel(HTexture& Texture)
+{
+	ImGui::Text("Width %d", Texture.Resolution.x);
+	ImGui::Text("Height %d", Texture.Resolution.y);
+
+	ImGui::Image(
+		reinterpret_cast<ImTextureID>(Texture.Descriptor.GPUDescriptorHandle.ptr),
+		ImVec2{ static_cast<float>(Texture.Resolution.x), static_cast<float>(Texture.Resolution.y) },
+		{ 0, 0 },
+		{ 1, 1 },
+		ImVec4{ 1, 1, 1, 1 });
 }

@@ -1,8 +1,8 @@
 #include "HTracer.h"
 
+#include "HWindow.h"
 #include "Hive/HRender.h"
 #include "Hive/HScene.h"
-#include "HWindow.h"
 
 #include <HImGui.h>
 #include <chrono>
@@ -20,21 +20,25 @@ namespace
 		{
 			if (ImGui::TreeNodeEx("Scene", ImGuiTreeNodeFlags_DefaultOpen))
 			{
-				for (entt::entity CameraEntity : Scene.Cameras)
-				{
+				Scene.Registry.view<HCamera>().each([&](entt::entity Entity, HCamera& Camera) {
 					if (ImGui::TreeNodeEx(
-							std::format("Camera_{}", (uint32_t)CameraEntity).c_str(),
+							std::format("Camera_{}", (uint32_t)Entity).c_str(),
 							ImGuiTreeNodeFlags_DefaultOpen))
 					{
-						HCamera& Camera = Scene.Get<HCamera>(CameraEntity);
-						HRelativeTransform& RelativeTransform = Scene.Get<HRelativeTransform>(CameraEntity);
 						ImGui::SliderFloat("Focal Length", &Camera.FocalLength, 0.01f, 4.0f);
-						ImGui::SliderDouble3("Translation", &RelativeTransform.Translation.x, -10.0, 10.0);
+
+						if (Scene.Has<HRelativeTransform>(Entity))
+						{
+							HRelativeTransform& RelativeTransform = Scene.Get<HRelativeTransform>(Entity);
+							ImGui::SliderDouble3("X", &RelativeTransform.Translation.x, -10.0, 10.0);
+							ImGui::SliderDouble3("Y", &RelativeTransform.Translation.y, -10.0, 10.0);
+							ImGui::SliderDouble3("Z", &RelativeTransform.Translation.z, -10.0, 10.0);
+						}
 						ImGui::TreePop();
 					}
-				}
+				});
 
-				for (entt::entity SphereEntity : Scene.Spheres)
+				/*for (entt::entity SphereEntity : Scene.Spheres)
 				{
 					if (ImGui::TreeNodeEx(
 							std::format("Sphere_{}", (uint32_t)SphereEntity).c_str(),
@@ -61,7 +65,7 @@ namespace
 						ImGui::SliderDouble3("Translation", &RelativeTransform.Translation.x, -10.0, 10.0);
 						ImGui::TreePop();
 					}
-				}
+				}*/
 				ImGui::TreePop();
 			}
 		}
@@ -69,7 +73,6 @@ namespace
 	}
 
 } // namespace
-
 
 void HHoney::DrawHoney(const glm::vec2& Resolution, HGUIWindow& GUIWindow, HScene& Scene, HRenderWindow& RenderWindow)
 {
@@ -84,7 +87,7 @@ void HHoney::DrawHoney(const glm::vec2& Resolution, HGUIWindow& GUIWindow, HScen
 	ImGui::SetNextWindowSize(TracerSize);
 	if (ImGui::Begin("TracerWindow"))
 	{
-		DrawRender(GUIWindow, Scene, Scene.Cameras[0], RenderWindow);
+		//DrawRender(GUIWindow, Scene, Scene.Cameras[0], RenderWindow);
 	}
 	ImGui::End();
 
