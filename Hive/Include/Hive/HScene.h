@@ -99,6 +99,11 @@ struct HNode
 	entt::entity RightSibbling = entt::null;
 };
 
+struct HScene;
+
+using HDetailsPannel = void (*)(entt::entity Entity, HScene& Scene);
+using HTreeView = void (*)(HScene& Scene, entt::entity& SelectedEntity);
+
 struct HScene
 {
 	entt::registry Registry{};
@@ -125,6 +130,9 @@ struct HScene
 	std::vector<HRenderedSphere> RenderedSpheres{};
 	std::vector<HMaterial> RenderedMaterials{};
 	std::vector<HTexture> Textures;
+
+	std::vector<HTreeView> TreeViews{};
+	std::vector<HDetailsPannel> DetailsPannels{};
 };
 
 namespace HHoney
@@ -132,11 +140,6 @@ namespace HHoney
 	void UpdateScene(HScene& Scene, entt::entity CameraEntity);
 
 	void SceneEditor(HScene& Scene);
-
-	template<typename T>
-	void DetailsPanel(T& Component)
-	{
-	}
 
 	void DetailsPanel(HCamera& Camera);
 

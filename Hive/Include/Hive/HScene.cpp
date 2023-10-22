@@ -123,10 +123,20 @@ void HHoney::SceneEditor(HScene& Scene)
 		}
 	});
 
+	for (HTreeView& TreeView : Scene.TreeViews)
+	{
+		TreeView(Scene, SelectedEntity);
+	}
+
 	ImGui::Text("Details");
 
 	if (SelectedEntity != entt::null)
 	{
+		for (HDetailsPannel& DetailsPannel : Scene.DetailsPannels)
+		{
+			DetailsPannel(SelectedEntity, Scene);
+		}
+
 		// Camera
 		if (Scene.Has<HCamera>(SelectedEntity))
 		{
