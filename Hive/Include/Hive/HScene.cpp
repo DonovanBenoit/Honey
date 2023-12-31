@@ -171,13 +171,95 @@ void HHoney::DetailsPanel(HRelativeTransform& RelativeTransform)
 
 void HHoney::DetailsPanel(HTexture& Texture)
 {
+	if (ImGui::Button("Save"))
+	{
+		FILE* File = nullptr;
+
+		std::filesystem::path Path = std::filesystem::path("./Textures") / Texture.Path;
+
+		std::filesystem::create_directories(Path.parent_path());
+
+		if (fopen_s(&File, Path.string().c_str(), "wb") == 0)
+		{
+			const uint64_t Size = Texture.Resolution.x * Texture.Resolution.y * 4;
+			fwrite(Texture.Data.data(), Size, 1, File);
+			fclose(File);
+		}
+	}
+
+	ImGui::SameLine();
+
+	if (ImGui::Button("Load"))
+	{
+		FILE* File = nullptr;
+
+		std::filesystem::path Path = std::filesystem::path("./Textures") / Texture.Path;
+		if (fopen_s(&File, Path.string().c_str(), "rb") == 0)
+		{
+			const uint64_t Size = Texture.Resolution.x * Texture.Resolution.y * 4;
+			fread(Texture.Data.data(), Size, 1, File);
+			fclose(File);
+			Texture.Version++;
+		}
+	}
+
+	std::string Path = Texture.Path.string();
+	char PathBuffer[MAX_PATH] = {};
+	strcpy_s(PathBuffer, Path.c_str());
+
+	if (ImGui::InputText("Path", PathBuffer, MAX_PATH))
+	{
+		Texture.Path = PathBuffer;
+	}
+
 	ImGui::Text("Width %d", Texture.Resolution.x);
 	ImGui::Text("Height %d", Texture.Resolution.y);
 
+	static float Color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	ImGui::ColorPicker4("Color", Color);
+
+	static float Scale = 8.0f;
+	Scale += ImGui::GetIO().MouseWheel;
+
+	glm::vec2 CursorPos = ImGui::GetCursorScreenPos();
+
 	ImGui::Image(
 		reinterpret_cast<ImTextureID>(Texture.Descriptor.GPUDescriptorHandle.ptr),
-		ImVec2{ static_cast<float>(Texture.Resolution.x), static_cast<float>(Texture.Resolution.y) },
+		ImVec2{ static_cast<float>(Texture.Resolution.x) * Scale, static_cast<float>(Texture.Resolution.y) * Scale },
 		{ 0, 0 },
 		{ 1, 1 },
 		ImVec4{ 1, 1, 1, 1 });
+
+	glm::vec2 MousePosInImage = glm::vec2(ImGui::GetMousePos()) - CursorPos;
+	glm::uvec2 PixelInImage = glm::floor(MousePosInImage / Scale);
+
+	if (PixelInImage.x >= 0u && PixelInImage.y >= 0u && PixelInImage.x < Texture.Resolution.x
+		&& PixelInImage.y < Texture.Resolution.y)
+	{
+		uint64_t Pixel = PixelInImage.y * Texture.Resolution.x + PixelInImage.x;
+
+		if (ImGui::GetIO().MouseDown[ImGuiMouseButton_Left])
+		{
+			Texture.Data.data()[Pixel * 4 + 0] = glm::clamp(Color[0] * 255.0f, 0.0f, 255.0f);
+			Texture.Data.data()[Pixel * 4 + 1] = glm::clamp(Color[1] * 255.0f, 0.0f, 255.0f);
+			Texture.Data.data()[Pixel * 4 + 2] = glm::clamp(Color[2] * 255.0f, 0.0f, 255.0f);
+			Texture.Data.data()[Pixel * 4 + 3] = glm::clamp(Color[3] * 255.0f, 0.0f, 255.0f);
+			Texture.Version++;
+		}
+		else if (ImGui::GetIO().MouseDown[ImGuiMouseButton_Right])
+		{
+			Color[0] = static_cast<float>(Texture.Data.data()[Pixel * 4 + 0]) / 255.0f;
+			Color[1] = static_cast<float>(Texture.Data.data()[Pixel * 4 + 1]) / 255.0f;
+			Color[2] = static_cast<float>(Texture.Data.data()[Pixel * 4 + 2]) / 255.0f;
+			Color[3] = static_cast<float>(Texture.Data.data()[Pixel * 4 + 3]) / 255.0f;
+		}
+	}
+
+	ImGui::SetTooltip(std::format(
+						  "MousePos = [{}, {}] -> [{}, {}]",
+						  MousePosInImage.x,
+						  MousePosInImage.y,
+						  PixelInImage.x,
+						  PixelInImage.y)
+						  .c_str());
 }

@@ -74,6 +74,7 @@ namespace HImGui
 
 	HFrameContext* WaitForNextFrameResources(HGUIWindow& GUIWindow);
 	void WaitForLastSubmittedFrame();
+	void WaitForAllSubmittedFrames();
 
 	bool CreateOrUpdateImage(HGUIWindow& GUIWindow, int64_t& ImageIndex, uint64_t Width, uint64_t Height);
 	bool UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex);

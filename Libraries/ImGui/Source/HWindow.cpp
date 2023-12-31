@@ -17,7 +17,6 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 
 // Forward declarations of helper functions
 void CleanupDeviceD3D();
-void WaitForLastSubmittedFrameBackend();
 
 namespace
 {
@@ -221,7 +220,7 @@ void HImGui::NewFrame(HGUIWindow& GUIWindow, bool& Quit)
 	if (SwapChainDesc.Width != WindowWidth || SwapChainDesc.Height != WindowHeight)
 	{
 		// Wait for previous frames to finish rendering
-		WaitForLastSubmittedFrameBackend();
+		WaitForAllSubmittedFrames();
 
 		HImGui::DestroyRenderTargets(GUIWindow);
 
@@ -297,7 +296,6 @@ bool HImGui::Render(HGUIWindow& GUIWindow)
 	{
 		return false;
 	}
-	HDirectX::WaitForFence(GUIWindow.DirectXContext->Fence, GUIWindow.DirectXContext->Fence.LastSignaledValue);
 
 	// Present with vsync
 	GUIWindow.SwapChain.SwapChain->Present(1, 0);
@@ -307,7 +305,7 @@ bool HImGui::Render(HGUIWindow& GUIWindow)
 
 void HImGui::DestroyGUIWindow(HGUIWindow& GUIWindow)
 {
-	WaitForLastSubmittedFrameBackend();
+	WaitForAllSubmittedFrames();
 
 	HImGui::DestroyRenderTargets(GUIWindow);
 
@@ -351,7 +349,6 @@ HFrameContext* HImGui::WaitForNextFrameResources(HGUIWindow& GUIWindow)
 	// if FenceValue == 0, no fence was signaled (i.e. First frame)
 	if (FenceValue != 0)
 	{
-		FrameContext->FenceValue = 0;
 		DirectXContext.Fence.Fence->SetEventOnCompletion(FenceValue, DirectXContext.Fence.FenceEvent);
 		WaitableObjects[1] = DirectXContext.Fence.FenceEvent;
 		NumWaitableObjects = 2;
@@ -364,7 +361,32 @@ HFrameContext* HImGui::WaitForNextFrameResources(HGUIWindow& GUIWindow)
 
 void HImGui::WaitForLastSubmittedFrame()
 {
-	WaitForLastSubmittedFrameBackend();
+	HFrameContext* FrameContext =
+		&DirectXContext.FrameContext[DirectXContext.FrameIndex % HDirectXContext::NUM_FRAMES_IN_FLIGHT];
+
+	UINT64 FenceValue = FrameContext->FenceValue;
+	if (FenceValue == 0)
+	{
+		return; // No fence was signaled
+	}
+
+	HDirectX::WaitForFence(DirectXContext.Fence, FenceValue);
+}
+
+void HImGui::WaitForAllSubmittedFrames()
+{
+	for (int32_t FrameIndex = 0; FrameIndex < HDirectXContext::NUM_FRAMES_IN_FLIGHT; FrameIndex++)
+	{
+		HFrameContext* FrameContext = &DirectXContext.FrameContext[FrameIndex];
+
+		UINT64 FenceValue = FrameContext->FenceValue;
+		if (FenceValue == 0)
+		{
+			continue; // No fence was signaled
+		}
+
+		HDirectX::WaitForFence(DirectXContext.Fence, FenceValue);
+	}
 }
 
 // Helper functions
@@ -438,20 +460,6 @@ glm::vec2 HImGui::GetWindowSize(HGUIWindow& GUIWindow)
 	int32_t WindowHeight;
 	glfwGetWindowSize(GUIWindow.Window, &WindowWidth, &WindowHeight);
 	return glm::vec2(WindowWidth, WindowHeight);
-}
-
-void WaitForLastSubmittedFrameBackend()
-{
-	HFrameContext* FrameContext =
-		&DirectXContext.FrameContext[DirectXContext.FrameIndex % HDirectXContext::NUM_FRAMES_IN_FLIGHT];
-
-	UINT64 FenceValue = FrameContext->FenceValue;
-	if (FenceValue == 0)
-		return; // No fence was signaled
-
-	FrameContext->FenceValue = 0;
-
-	HDirectX::WaitForFence(DirectXContext.Fence, FenceValue);
 }
 
 bool HImGui::CreateOrUpdateImage(HGUIWindow& GUIWindow, int64_t& ImageIndex, uint64_t Width, uint64_t Height)

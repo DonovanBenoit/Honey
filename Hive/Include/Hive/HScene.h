@@ -30,6 +30,8 @@ struct HMesh
 
 struct HTexture
 {
+	std::filesystem::path Path = "";
+
 	uint64_t Version = 0;
 	std::vector<uint8_t> Data{};
 	glm::uvec2 Resolution{};
