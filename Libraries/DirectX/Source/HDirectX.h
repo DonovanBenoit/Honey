@@ -45,6 +45,7 @@ struct HFrameContext
 {
 	ID3D12CommandAllocator* CommandAllocator = nullptr;
 
+	HFence Fence{};
 	UINT64 FenceValue = 0;
 };
 
@@ -70,8 +71,6 @@ struct HDirectXContext
 	ID3D12GraphicsCommandList* CopyCommandList = nullptr;
 	ID3D12CommandAllocator* CopyCommandAllocator = nullptr;
 	HFence CopyFence{};
-
-	HFence Fence{};
 };
 
 struct HResource

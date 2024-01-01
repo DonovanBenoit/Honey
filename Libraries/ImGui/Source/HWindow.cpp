@@ -103,6 +103,13 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 			HImGui::DestroyGUIWindow(GUIWindow);
 			return false;
 		}
+
+		// Fence, each thread needs their own fence
+		if (!HDirectX::CreateFence(DirectXContext.FrameContext[i].Fence, GUIWindow.DirectXContext->Device))
+		{
+			HImGui::DestroyGUIWindow(GUIWindow);
+			return false;
+		}
 	}
 
 	// Command List
@@ -146,13 +153,6 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	}
 	// Copy Fence
 	if (!HDirectX::CreateFence(DirectXContext.CopyFence, GUIWindow.DirectXContext->Device))
-	{
-		HImGui::DestroyGUIWindow(GUIWindow);
-		return false;
-	}
-
-	// Fence
-	if (!HDirectX::CreateFence(DirectXContext.Fence, GUIWindow.DirectXContext->Device))
 	{
 		HImGui::DestroyGUIWindow(GUIWindow);
 		return false;
@@ -289,10 +289,7 @@ bool HImGui::Render(HGUIWindow& GUIWindow)
 		(ID3D12CommandList* const*)&GUIWindow.DirectXContext->CommandList);
 
 	// Wait for the commands to finish executing
-	if (!HDirectX::SignalFence(
-			GUIWindow.DirectXContext->CommandQueue,
-			GUIWindow.DirectXContext->Fence,
-			FrameContext->FenceValue))
+	if (!HDirectX::SignalFence(GUIWindow.DirectXContext->CommandQueue, FrameContext->Fence, FrameContext->FenceValue))
 	{
 		return false;
 	}
@@ -349,8 +346,8 @@ HFrameContext* HImGui::WaitForNextFrameResources(HGUIWindow& GUIWindow)
 	// if FenceValue == 0, no fence was signaled (i.e. First frame)
 	if (FenceValue != 0)
 	{
-		DirectXContext.Fence.Fence->SetEventOnCompletion(FenceValue, DirectXContext.Fence.FenceEvent);
-		WaitableObjects[1] = DirectXContext.Fence.FenceEvent;
+		FrameContext->Fence.Fence->SetEventOnCompletion(FenceValue, FrameContext->Fence.FenceEvent);
+		WaitableObjects[1] = FrameContext->Fence.FenceEvent;
 		NumWaitableObjects = 2;
 	}
 
@@ -361,16 +358,16 @@ HFrameContext* HImGui::WaitForNextFrameResources(HGUIWindow& GUIWindow)
 
 void HImGui::WaitForLastSubmittedFrame()
 {
-	HFrameContext* FrameContext =
-		&DirectXContext.FrameContext[DirectXContext.FrameIndex % HDirectXContext::NUM_FRAMES_IN_FLIGHT];
+	HFrameContext& FrameContext =
+		DirectXContext.FrameContext[DirectXContext.FrameIndex % HDirectXContext::NUM_FRAMES_IN_FLIGHT];
 
-	UINT64 FenceValue = FrameContext->FenceValue;
+	UINT64 FenceValue = FrameContext.FenceValue;
 	if (FenceValue == 0)
 	{
 		return; // No fence was signaled
 	}
 
-	HDirectX::WaitForFence(DirectXContext.Fence, FenceValue);
+	HDirectX::WaitForFence(FrameContext.Fence, FenceValue);
 }
 
 void HImGui::WaitForAllSubmittedFrames()
@@ -385,7 +382,7 @@ void HImGui::WaitForAllSubmittedFrames()
 			continue; // No fence was signaled
 		}
 
-		HDirectX::WaitForFence(DirectXContext.Fence, FenceValue);
+		HDirectX::WaitForFence(FrameContext->Fence, FenceValue);
 	}
 }
 
@@ -399,6 +396,7 @@ void CleanupDeviceD3D()
 		{
 			DirectXContext.FrameContext[i].CommandAllocator->Release();
 			DirectXContext.FrameContext[i].CommandAllocator = NULL;
+			DirectXContext.FrameContext[i].Fence.Release();
 		}
 	}
 
@@ -412,8 +410,6 @@ void CleanupDeviceD3D()
 		DirectXContext.CommandList->Release();
 		DirectXContext.CommandList = NULL;
 	}
-
-	DirectXContext.Fence.Release();
 
 	if (DirectXContext.Device)
 	{

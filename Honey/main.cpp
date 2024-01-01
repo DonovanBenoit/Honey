@@ -1,10 +1,10 @@
 #include "HImGui.h"
-#include <Hive/HRender.h>
-#include <Hive/HScene.h>
 #include "HTracer.h"
 #include "HWindow.h"
 
 #include <HDirectX.h>
+#include <Hive/HRender.h>
+#include <Hive/HScene.h>
 #include <Windows.h>
 
 // Main code
@@ -31,16 +31,20 @@ int main(int, char**)
 
 		DXGI_SWAP_CHAIN_DESC SwapChainDeesc;
 		GUIWindow.SwapChain.SwapChain->GetDesc(&SwapChainDeesc);
-		HHoney::DrawHoney({ SwapChainDeesc.BufferDesc.Width, SwapChainDeesc.BufferDesc.Height }, GUIWindow, Scene, RenderWindow);
+		HHoney::DrawHoney(
+			{ SwapChainDeesc.BufferDesc.Width, SwapChainDeesc.BufferDesc.Height },
+			GUIWindow,
+			Scene,
+			RenderWindow);
 
 		// HHoney::UpdateScene(Scene, Scene.Cameras[0]);
 
 		// Rendering
 		ImGui::Render();
 
-		HFrameContext* frameCtx = HImGui::WaitForNextFrameResources(GUIWindow);
+		HFrameContext* FrameContext = HImGui::WaitForNextFrameResources(GUIWindow);
 		UINT backBufferIdx = GUIWindow.SwapChain.SwapChain->GetCurrentBackBufferIndex();
-		frameCtx->CommandAllocator->Reset();
+		FrameContext->CommandAllocator->Reset();
 
 		D3D12_RESOURCE_BARRIER barrier = {};
 		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -49,7 +53,7 @@ int main(int, char**)
 		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		GUIWindow.DirectXContext->CommandList->Reset(frameCtx->CommandAllocator, NULL);
+		GUIWindow.DirectXContext->CommandList->Reset(FrameContext->CommandAllocator, NULL);
 		GUIWindow.DirectXContext->CommandList->ResourceBarrier(1, &barrier);
 
 		// Render Dear ImGui graphics
@@ -75,8 +79,8 @@ int main(int, char**)
 
 		if (!HDirectX::SignalFence(
 				GUIWindow.DirectXContext->CommandQueue,
-				GUIWindow.DirectXContext->Fence,
-				frameCtx->FenceValue))
+				FrameContext->Fence,
+				FrameContext->FenceValue))
 		{
 			break;
 		}
