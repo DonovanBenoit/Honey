@@ -86,7 +86,7 @@ int main(int, char**)
 		}
 	}
 
-	HImGui::WaitForLastSubmittedFrame();
+	HImGui::WaitForAllSubmittedFrames();
 
 	HImGui::DestroyGUIWindow(GUIWindow);
 

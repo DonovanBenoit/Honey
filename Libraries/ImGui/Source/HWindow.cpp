@@ -220,7 +220,7 @@ void HImGui::NewFrame(HGUIWindow& GUIWindow, bool& Quit)
 	if (SwapChainDesc.Width != WindowWidth || SwapChainDesc.Height != WindowHeight)
 	{
 		// Wait for previous frames to finish rendering
-		WaitForAllSubmittedFrames();
+		WaitForAllSubmittedFrames(GUIWindow);
 
 		HImGui::DestroyRenderTargets(GUIWindow);
 
@@ -302,7 +302,7 @@ bool HImGui::Render(HGUIWindow& GUIWindow)
 
 void HImGui::DestroyGUIWindow(HGUIWindow& GUIWindow)
 {
-	WaitForAllSubmittedFrames();
+	WaitForAllSubmittedFrames(GUIWindow);
 
 	HImGui::DestroyRenderTargets(GUIWindow);
 
@@ -356,34 +356,23 @@ HFrameContext* HImGui::WaitForNextFrameResources(HGUIWindow& GUIWindow)
 	return FrameContext;
 }
 
-void HImGui::WaitForLastSubmittedFrame()
+void HImGui::WaitForAllSubmittedFrames(HGUIWindow& GUIWindow)
 {
-	HFrameContext& FrameContext =
-		DirectXContext.FrameContext[DirectXContext.FrameIndex % HDirectXContext::NUM_FRAMES_IN_FLIGHT];
+	std::vector<HANDLE> WaitableObjects;
+	WaitableObjects.push_back(GUIWindow.SwapChain.SwapChainWaitableObject);
 
-	UINT64 FenceValue = FrameContext.FenceValue;
-	if (FenceValue == 0)
-	{
-		return; // No fence was signaled
-	}
-
-	HDirectX::WaitForFence(FrameContext.Fence, FenceValue);
-}
-
-void HImGui::WaitForAllSubmittedFrames()
-{
 	for (int32_t FrameIndex = 0; FrameIndex < HDirectXContext::NUM_FRAMES_IN_FLIGHT; FrameIndex++)
 	{
-		HFrameContext* FrameContext = &DirectXContext.FrameContext[FrameIndex];
+		HFrameContext& FrameContext = DirectXContext.FrameContext[FrameIndex];
 
-		UINT64 FenceValue = FrameContext->FenceValue;
-		if (FenceValue == 0)
+		UINT64 FenceValue = FrameContext.FenceValue;
+		if (FenceValue != 0)
 		{
-			continue; // No fence was signaled
+			FrameContext.Fence.Fence->SetEventOnCompletion(FenceValue, FrameContext.Fence.FenceEvent);
+			WaitableObjects.push_back(FrameContext.Fence.FenceEvent);
 		}
-
-		HDirectX::WaitForFence(FrameContext->Fence, FenceValue);
 	}
+	WaitForMultipleObjects(WaitableObjects.size(), WaitableObjects.data(), TRUE, INFINITE);
 }
 
 // Helper functions
@@ -418,11 +407,11 @@ void CleanupDeviceD3D()
 	}
 
 #ifdef DX12_ENABLE_DEBUG_LAYER
-	IDXGIDebug1* pDebug = NULL;
-	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&pDebug))))
+	IDXGIDebug1* Debug = NULL;
+	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&Debug))))
 	{
-		pDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_DETAIL);
-		pDebug->Release();
+		Debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_DETAIL);
+		Debug->Release();
 	}
 #endif
 }

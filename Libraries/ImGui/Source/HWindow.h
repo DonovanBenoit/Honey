@@ -73,8 +73,7 @@ namespace HImGui
 	glm::vec2 GetWindowSize(HGUIWindow& GUIWindow);
 
 	HFrameContext* WaitForNextFrameResources(HGUIWindow& GUIWindow);
-	void WaitForLastSubmittedFrame();
-	void WaitForAllSubmittedFrames();
+	void WaitForAllSubmittedFrames(HGUIWindow& GUIWindow);
 
 	bool CreateOrUpdateImage(HGUIWindow& GUIWindow, int64_t& ImageIndex, uint64_t Width, uint64_t Height);
 	bool UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex);
