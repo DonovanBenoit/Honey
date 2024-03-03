@@ -167,6 +167,7 @@ void HHoney::DetailsPanel(HRelativeTransform& RelativeTransform)
 {
 	ImGui::Text("RelativeTransform");
 	ImGui::SliderDouble3("Translation", &RelativeTransform.Translation.x, -10.0, 10.0);
+	ImGui::SliderDouble4("Rotation", &RelativeTransform.Rotation.x, -1.0, 1.0, "%.3f", ImGuiSliderFlags_NoInput);
 }
 
 void HHoney::DetailsPanel(HTexture& Texture)
