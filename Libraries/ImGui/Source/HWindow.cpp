@@ -358,8 +358,9 @@ HFrameContext* HImGui::WaitForNextFrameResources(HGUIWindow& GUIWindow)
 
 void HImGui::WaitForAllSubmittedFrames(HGUIWindow& GUIWindow)
 {
-	std::vector<HANDLE> WaitableObjects;
-	WaitableObjects.push_back(GUIWindow.SwapChain.SwapChainWaitableObject);
+	uint64_t WaitiableObjectIndex = 0;
+	std::array<HANDLE, HDirectXContext::NUM_FRAMES_IN_FLIGHT + 1> WaitableObjects;
+	WaitableObjects[WaitiableObjectIndex++] = GUIWindow.SwapChain.SwapChainWaitableObject;
 
 	for (int32_t FrameIndex = 0; FrameIndex < HDirectXContext::NUM_FRAMES_IN_FLIGHT; FrameIndex++)
 	{
@@ -369,7 +370,7 @@ void HImGui::WaitForAllSubmittedFrames(HGUIWindow& GUIWindow)
 		if (FenceValue != 0)
 		{
 			FrameContext.Fence.Fence->SetEventOnCompletion(FenceValue, FrameContext.Fence.FenceEvent);
-			WaitableObjects.push_back(FrameContext.Fence.FenceEvent);
+			WaitableObjects[WaitiableObjectIndex++] = FrameContext.Fence.FenceEvent;
 		}
 	}
 	WaitForMultipleObjects(WaitableObjects.size(), WaitableObjects.data(), TRUE, INFINITE);

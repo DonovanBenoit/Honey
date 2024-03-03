@@ -391,14 +391,14 @@ bool HDirectX::CreateSwapChain(
 
 	{
 		IDXGIFactory4* dxgiFactory = NULL;
-		IDXGISwapChain1* swapChain1 = NULL;
+		IDXGISwapChain1* SwapChain1 = NULL;
 		if (CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory)) != S_OK)
 			return false;
-		if (dxgiFactory->CreateSwapChainForHwnd(CommandQueue, HWND, &SwapChainDesc, NULL, NULL, &swapChain1) != S_OK)
+		if (dxgiFactory->CreateSwapChainForHwnd(CommandQueue, HWND, &SwapChainDesc, NULL, NULL, &SwapChain1) != S_OK)
 			return false;
-		if (swapChain1->QueryInterface(IID_PPV_ARGS(&SwapChain.SwapChain)) != S_OK)
+		if (SwapChain1->QueryInterface(IID_PPV_ARGS(&SwapChain.SwapChain)) != S_OK)
 			return false;
-		swapChain1->Release();
+		SwapChain1->Release();
 		dxgiFactory->Release();
 		SwapChain.SwapChain->SetMaximumFrameLatency(BufferCount);
 		SwapChain.SwapChainWaitableObject = SwapChain.SwapChain->GetFrameLatencyWaitableObject();
