@@ -9,9 +9,12 @@ cbuffer DSceneBuffer : register(b0)
 	uint ShapeCount;
 };
 
+#define Shape_Sphere 0
+
 struct DShape
 {
     float4 PositionRadius;
+	uint ShapeType;
 };
 StructuredBuffer<DShape> ShapeBuffer : register(t0);
 
@@ -35,6 +38,21 @@ bool IntersectSphere(in float3 RayOrigin, in float3 RayDirection, in float3 Cent
     t2 = tca + thc;
 
     return true;
+}
+
+bool IntersectAABB(in float3 RayOrigin, in float3 RayDirection, in float3 Min, in float3 Max, inout float TNear, inout float TFar)
+{
+    float t1 = (Min.x - RayOrigin.x) / RayDirection.x;
+    float t2 = (Max.x - RayOrigin.x) / RayDirection.x;
+    float t3 = (Min.y - RayOrigin.y) / RayDirection.y;
+    float t4 = (Max.y - RayOrigin.y) / RayDirection.y;
+    float t5 = (Min.z - RayOrigin.z) / RayDirection.z;
+    float t6 = (Max.z - RayOrigin.z) / RayDirection.z;
+
+    TNear = max(max(min(t1, t2), min(t3, t4)), min(t5, t6));
+    TFar = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
+
+    return TNear < TFar && TFar > 0.0f;
 }
 
 void GenerateRay(in float2 ScreenUV, out float3 RayOrigin, out float3 RayDirection)
