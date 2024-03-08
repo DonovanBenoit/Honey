@@ -1,5 +1,20 @@
 RWTexture2D<float4> OutputBuffer : register(u0);
 
+
+cbuffer DSceneBuffer : register(b0)
+{
+	float4x4 CameraRotation;
+	float4 CameraOrigin;
+	float CameraFocalLength;
+	uint ShapeCount;
+};
+
+struct DShape
+{
+    float4 PositionRadius;
+};
+StructuredBuffer<DShape> ShapeBuffer : register(t0);
+
 float SDSphere(in float3 Displacement, in float Radius)
 {
   return length(Displacement) - Radius;
@@ -22,13 +37,6 @@ bool IntersectSphere(in float3 RayOrigin, in float3 RayDirection, in float3 Cent
     return true;
 }
 
-cbuffer DSceneBuffer : register(b0)
-{
-	float4x4 CameraRotation;
-	float4 CameraOrigin;
-	float CameraFocalLength;
-};
-
 void GenerateRay(in float2 ScreenUV, out float3 RayOrigin, out float3 RayDirection)
 {
 	RayOrigin = CameraOrigin.xyz;
@@ -48,13 +56,26 @@ float SDScene(in float3 Position)
 
 bool TraceRay(in float3 RayOrigin, in float3 RayDirection, inout float3 Position)
 {
-	float T1, T2;
-	if (IntersectSphere(RayOrigin, RayDirection, float3(0.0, 0.0, 10.0), 2.0, T1, T2))
+	bool IntersectionFound = false;
+	float TCurrent = 10000.0;
+	
+	for (uint ShapeIndex = 0; ShapeIndex < ShapeCount; ShapeIndex++)
 	{
-		Position = RayOrigin + RayDirection * min(max(T1, 0.0), max(T1, 0.0));
-		return true;
+		DShape Shape = ShapeBuffer[ShapeIndex];
+		float T1, T2;
+		if (IntersectSphere(RayOrigin, RayDirection, Shape.PositionRadius.xyz, Shape.PositionRadius.w, T1, T2))
+		{
+			float TSphere = min(max(T1, 0.0), max(T1, 0.0));
+			if (TSphere < TCurrent)
+			{
+				TCurrent = TSphere;
+				IntersectionFound = true;
+			}
+		}
 	}
-	return false;
+	
+	Position = RayOrigin + RayDirection * TCurrent;
+	return IntersectionFound;
 }
 
 [numthreads(8, 8, 1)] // Define thread group size (64 threads in 1D)
