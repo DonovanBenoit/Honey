@@ -6,6 +6,45 @@
 #include <glm/gtx/color_space.hpp>
 #include <imgui.h>
 
+
+entt::entity HScene::CreateTransformNode(entt::entity Parent)
+{
+	entt::entity Entity = Registry.create();
+	HWorldTransform& WorldTransform = Registry.emplace<HWorldTransform>(Entity);
+	HRelativeTransform& RelativeTransform = Registry.emplace<HRelativeTransform>(Entity);
+	
+	if (Parent != entt::null)
+	{
+		if (Registry.any_of<HNode>(Parent))
+		{
+			HNode& ParentNode = Registry.get<HNode>(Parent);
+			if (ParentNode.FirstChild == entt::null)
+			{
+				ParentNode.FirstChild = Parent;
+			}
+			else
+			{
+				entt::entity Child = ParentNode.FirstChild;
+				while (Registry.get<HNode>(Child).RightSibbling != entt::null)
+				{
+					Child = Registry.get<HNode>(Child).RightSibbling;
+				}
+				Registry.get<HNode>(Child).RightSibbling = Entity;
+			}
+		}
+		else
+		{
+			HNode& ParentNode = Registry.emplace<HNode>(Parent);
+			ParentNode.FirstChild = Entity;
+		}
+	}
+
+	HNode& Node = Registry.emplace<HNode>(Entity);
+	Node.Parent = Parent;
+	
+	return Entity;
+}
+
 entt::entity HScene::CreateCamera()
 {
 	entt::entity CameraEntity = Registry.create();

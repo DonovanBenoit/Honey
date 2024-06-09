@@ -110,6 +110,8 @@ struct HScene
 {
 	entt::registry Registry{};
 
+	entt::entity CreateTransformNode(entt::entity Parent = entt::null);
+
 	entt::entity CreateCamera();
 	entt::entity CreateSphere();
 	entt::entity CreateSDF();
