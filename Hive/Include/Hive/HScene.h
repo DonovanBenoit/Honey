@@ -130,6 +130,8 @@ struct HScene
 		return Registry.any_of<T>(Entity);
 	}
 
+	void Destroy(entt::entity Entity);
+
 	std::vector<HSDF> RenderedSDFs{};
 	std::vector<HRenderedSphere> RenderedSpheres{};
 	std::vector<HMaterial> RenderedMaterials{};

@@ -20,7 +20,7 @@ entt::entity HScene::CreateTransformNode(entt::entity Parent)
 			HNode& ParentNode = Registry.get<HNode>(Parent);
 			if (ParentNode.FirstChild == entt::null)
 			{
-				ParentNode.FirstChild = Parent;
+				ParentNode.FirstChild = Entity;
 			}
 			else
 			{
@@ -43,6 +43,46 @@ entt::entity HScene::CreateTransformNode(entt::entity Parent)
 	Node.Parent = Parent;
 	
 	return Entity;
+}
+
+void HScene::Destroy(entt::entity Entity)
+{
+	if (Has<HNode>(Entity))
+	{
+		HNode& Node = Get<HNode>(Entity);
+
+		// Remove from parent
+		if (Node.Parent != entt::null)
+		{
+			HNode& ParentNode = Get<HNode>(Node.Parent);
+			if (ParentNode.FirstChild == Entity)
+			{
+				ParentNode.FirstChild = Node.RightSibbling;
+			}
+		}
+
+		// Remove from sibblings
+		if (Node.LeftSibbling != entt::null)
+		{
+			Get<HNode>(Node.LeftSibbling).RightSibbling = Node.RightSibbling;
+		}
+		if (Node.RightSibbling != entt::null)
+		{
+			Get<HNode>(Node.RightSibbling).LeftSibbling = Node.LeftSibbling;
+		}
+
+		// Remove children
+		entt::entity Child = Node.FirstChild;
+		while (Child != entt::null)
+		{
+			entt::entity NextChild = Get<HNode>(Child).RightSibbling;
+			Destroy(Child);
+			Child = NextChild;
+		}
+	}
+
+	// destroys the entity and all its components
+	Registry.destroy(Entity);
 }
 
 entt::entity HScene::CreateCamera()
