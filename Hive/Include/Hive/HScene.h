@@ -145,7 +145,7 @@ namespace HHoney
 {
 	void UpdateScene(HScene& Scene, entt::entity CameraEntity);
 
-	void SceneEditor(HScene& Scene);
+	void SceneEditor(HScene& Scene, entt::entity& SelectedEntity);
 
 	void DetailsPanel(HCamera& Camera);
 

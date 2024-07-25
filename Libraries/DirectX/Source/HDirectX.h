@@ -121,7 +121,11 @@ namespace HDirectX
 	bool CreateDeviceD3D(ID3D12Device** Device, HWND HWND);
 	bool CreateRTVHeap(ID3D12DescriptorHeap** RTVDescHeap, ID3D12Device* Device, uint32_t DescriptorCount);
 	bool CreateCBVSRVUAVHeap(HDescriptorHeap& CBVSRVUAVDescHeap, ID3D12Device* Device, uint32_t DescriptorCount);
-	bool CreateCommandQueue(ID3D12CommandQueue** CommandQueue, ID3D12Device* Device, D3D12_COMMAND_LIST_TYPE Type);
+	bool CreateCommandQueue(
+		ID3D12CommandQueue** CommandQueue,
+		ID3D12Device* Device,
+		D3D12_COMMAND_LIST_TYPE Type,
+		std::string_view Name);
 	bool CreateCommandAllocator(
 		ID3D12CommandAllocator** CommandAllocator,
 		ID3D12Device* Device,

@@ -58,10 +58,7 @@ bool HDirectX::CreateRTVHeap(ID3D12DescriptorHeap** RTVDescHeap, ID3D12Device* D
 	}
 }
 
-bool HDirectX::CreateCBVSRVUAVHeap(
-	HDescriptorHeap& CBVSRVUAVDescHeap,
-	ID3D12Device* Device,
-	uint32_t DescriptorCount)
+bool HDirectX::CreateCBVSRVUAVHeap(HDescriptorHeap& CBVSRVUAVDescHeap, ID3D12Device* Device, uint32_t DescriptorCount)
 {
 	D3D12_DESCRIPTOR_HEAP_DESC DescriptorHeapDesc = {};
 	DescriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -72,12 +69,17 @@ bool HDirectX::CreateCBVSRVUAVHeap(
 		return false;
 	}
 
-	CBVSRVUAVDescHeap.HeapIncrementSize = Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	CBVSRVUAVDescHeap.HeapIncrementSize =
+		Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	return true;
 }
 
-bool HDirectX::CreateCommandQueue(ID3D12CommandQueue** CommandQueue, ID3D12Device* Device, D3D12_COMMAND_LIST_TYPE Type)
+bool HDirectX::CreateCommandQueue(
+	ID3D12CommandQueue** CommandQueue,
+	ID3D12Device* Device,
+	D3D12_COMMAND_LIST_TYPE Type,
+	std::string_view Name)
 {
 	D3D12_COMMAND_QUEUE_DESC desc = {};
 	desc.Type = Type;
@@ -86,6 +88,12 @@ bool HDirectX::CreateCommandQueue(ID3D12CommandQueue** CommandQueue, ID3D12Devic
 	if (Device->CreateCommandQueue(&desc, IID_PPV_ARGS(CommandQueue)) != S_OK)
 	{
 		return false;
+	}
+
+	if (!Name.empty())
+	{
+		std::wstring WideName = std::wstring(Name.begin(), Name.end());
+		(*CommandQueue)->SetName(WideName.c_str());
 	}
 
 	return true;

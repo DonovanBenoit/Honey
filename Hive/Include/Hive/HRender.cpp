@@ -66,8 +66,9 @@ void HHoney::DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity Camer
 
 	SIZE_T CBVSRVUAV_DescriptorSize =
 		GUIWindow.DirectXContext->Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	//D3D12_CPU_DESCRIPTOR_HANDLE CBVSRVUAV_Handle = GUIWindow.CBVSRVUAV_DescHeap->GetCPUDescriptorHandleForHeapStart();
-	//CBVSRVUAV_Handle.ptr += (RenderWindow.ImageIndex + 1) * CBVSRVUAV_DescriptorSize;
+	// D3D12_CPU_DESCRIPTOR_HANDLE CBVSRVUAV_Handle =
+	// GUIWindow.CBVSRVUAV_DescHeap->GetCPUDescriptorHandleForHeapStart(); CBVSRVUAV_Handle.ptr +=
+	// (RenderWindow.ImageIndex + 1) * CBVSRVUAV_DescriptorSize;
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC SRVDescriptor{};
 	SRVDescriptor.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -163,7 +164,8 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	if (!HDirectX::CreateCommandQueue(
 			&ComputePass.CommandQueue,
 			GUIWindow.DirectXContext->Device,
-			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
+			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE,
+			"Compute"))
 	{
 		return false;
 	}
@@ -185,20 +187,19 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 		return false;
 	}
 
-
 	if (!HDirectX::CreateCommandAllocator(
-		&ComputePass.UpdateCommandAllocator,
-		GUIWindow.DirectXContext->Device,
-		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
+			&ComputePass.UpdateCommandAllocator,
+			GUIWindow.DirectXContext->Device,
+			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
 	{
 		return false;
 	}
 
 	if (!HDirectX::CreateCommandList(
-		&ComputePass.UpdateCommandList,
-		ComputePass.UpdateCommandAllocator,
-		GUIWindow.DirectXContext->Device,
-		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
+			&ComputePass.UpdateCommandList,
+			ComputePass.UpdateCommandAllocator,
+			GUIWindow.DirectXContext->Device,
+			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
 	{
 		return false;
 	}
@@ -528,53 +529,52 @@ bool HHoney::RenderComputePass(
 		HDirectX::ExecuteCommandLists<1>(ComputePass.CommandQueue, { ComputePass.UpdateCommandList });
 	}
 
-	ComputePass.RenderFuture = std::async(
-		[&]() {
-			ComputePass.CommandAllocator->Reset();
-			ComputePass.CommandList->Reset(ComputePass.CommandAllocator, nullptr);
+	ComputePass.RenderFuture = std::async([&]() {
+		ComputePass.CommandAllocator->Reset();
+		ComputePass.CommandList->Reset(ComputePass.CommandAllocator, nullptr);
 
-			// Set Root Signature
-			{
-				ComputePass.CommandList->SetDescriptorHeaps(1, &ComputePass.CBVSRVUAVDescriptorHeap.DescriptorHeap);
-				ComputePass.CommandList->SetComputeRootSignature(ComputePass.RootSignature.RootSiganature.Get());
-				ComputePass.CommandList->SetComputeRootDescriptorTable(
-					0,
-					ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.OutputHeapIndex));
-				ComputePass.CommandList->SetComputeRootDescriptorTable(
-					1,
-					ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SpheresHeapIndex));
-				ComputePass.CommandList->SetComputeRootDescriptorTable(
-					2,
-					ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.MaterialsHeapIndex));
-				ComputePass.CommandList->SetComputeRootDescriptorTable(
-					3,
-					ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SceneHeapIndex));
-				ComputePass.CommandList->SetComputeRootDescriptorTable(
-					4,
-					ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SDFsHeapIndex));
-				/*ComputePass.CommandList->SetComputeRootDescriptorTable(
-					5,
-					ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.MarchDistanceHeapIndex));
-				ComputePass.CommandList->SetComputeRootDescriptorTable(
-					6,
-					ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.StepDistanceHeapIndex));*/
-			}
+		// Set Root Signature
+		{
+			ComputePass.CommandList->SetDescriptorHeaps(1, &ComputePass.CBVSRVUAVDescriptorHeap.DescriptorHeap);
+			ComputePass.CommandList->SetComputeRootSignature(ComputePass.RootSignature.RootSiganature.Get());
+			ComputePass.CommandList->SetComputeRootDescriptorTable(
+				0,
+				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.OutputHeapIndex));
+			ComputePass.CommandList->SetComputeRootDescriptorTable(
+				1,
+				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SpheresHeapIndex));
+			ComputePass.CommandList->SetComputeRootDescriptorTable(
+				2,
+				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.MaterialsHeapIndex));
+			ComputePass.CommandList->SetComputeRootDescriptorTable(
+				3,
+				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SceneHeapIndex));
+			ComputePass.CommandList->SetComputeRootDescriptorTable(
+				4,
+				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SDFsHeapIndex));
+			/*ComputePass.CommandList->SetComputeRootDescriptorTable(
+				5,
+				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.MarchDistanceHeapIndex));
+			ComputePass.CommandList->SetComputeRootDescriptorTable(
+				6,
+				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.StepDistanceHeapIndex));*/
+		}
 
-			// Draw Pass
-			{
-				ComputePass.CommandList->SetPipelineState(ComputePass.PipelineState.Get());
-				ComputePass.CommandList->Dispatch(ComputePass.Resolution.x, ComputePass.Resolution.y, 1);
-			}
+		// Draw Pass
+		{
+			ComputePass.CommandList->SetPipelineState(ComputePass.PipelineState.Get());
+			ComputePass.CommandList->Dispatch(ComputePass.Resolution.x, ComputePass.Resolution.y, 1);
+		}
 
-			ComputePass.CommandList->Close();
-			HDirectX::ExecuteCommandLists<1>(ComputePass.CommandQueue, { ComputePass.CommandList });
+		ComputePass.CommandList->Close();
+		HDirectX::ExecuteCommandLists<1>(ComputePass.CommandQueue, { ComputePass.CommandList });
 
-			ComputePass.FenceValue++;
-			HDirectX::SignalFence(ComputePass.CommandQueue, ComputePass.Fence, ComputePass.FenceValue);
-			HDirectX::WaitForFence(ComputePass.Fence, ComputePass.FenceValue);
+		ComputePass.FenceValue++;
+		HDirectX::SignalFence(ComputePass.CommandQueue, ComputePass.Fence, ComputePass.FenceValue);
+		HDirectX::WaitForFence(ComputePass.Fence, ComputePass.FenceValue);
 
-			return true;
-		});
+		return true;
+	});
 
 	return true;
 }

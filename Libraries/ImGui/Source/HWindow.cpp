@@ -86,7 +86,14 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	if (!HDirectX::CreateCommandQueue(
 			&GUIWindow.DirectXContext->CommandQueue,
 			GUIWindow.DirectXContext->Device,
-			D3D12_COMMAND_LIST_TYPE_DIRECT))
+			D3D12_COMMAND_LIST_TYPE_DIRECT,
+			"Render"))
+	{
+		HImGui::DestroyGUIWindow(GUIWindow);
+		return false;
+	}
+
+	if (!HDirectX::CreateFence(GUIWindow.Fence, GUIWindow.DirectXContext->Device))
 	{
 		HImGui::DestroyGUIWindow(GUIWindow);
 		return false;
@@ -127,7 +134,8 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	if (!HDirectX::CreateCommandQueue(
 			&GUIWindow.DirectXContext->CopyCommandQueue,
 			GUIWindow.DirectXContext->Device,
-			D3D12_COMMAND_LIST_TYPE_DIRECT))
+			D3D12_COMMAND_LIST_TYPE_DIRECT,
+			"Copy"))
 	{
 		HImGui::DestroyGUIWindow(GUIWindow);
 		return false;
@@ -217,10 +225,19 @@ void HImGui::NewFrame(HGUIWindow& GUIWindow, bool& Quit)
 		Quit = true;
 		return;
 	}
+
+	glfwPollEvents();
+
+	// Start the Dear ImGui frame
+	ImGui_ImplDX12_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+
 	if (SwapChainDesc.Width != WindowWidth || SwapChainDesc.Height != WindowHeight)
 	{
-		// Wait for previous frames to finish rendering
-		WaitForAllSubmittedFrames();
+		// Flush the CommandQueue
+		HDirectX::SignalFence(GUIWindow.DirectXContext->CommandQueue, GUIWindow.Fence, GUIWindow.FenceValue);
+		HDirectX::WaitForFence(GUIWindow.Fence, GUIWindow.FenceValue);
 
 		HImGui::DestroyRenderTargets(GUIWindow);
 
@@ -233,13 +250,6 @@ void HImGui::NewFrame(HGUIWindow& GUIWindow, bool& Quit)
 		assert(SUCCEEDED(Result) && "Failed to resize swapchain.");
 		HImGui::CreateRenderTargets(GUIWindow);
 	}
-
-	glfwPollEvents();
-
-	// Start the Dear ImGui frame
-	ImGui_ImplDX12_NewFrame();
-	ImGui_ImplGlfw_NewFrame();
-	ImGui::NewFrame();
 }
 
 bool HImGui::Render(HGUIWindow& GUIWindow)
@@ -302,7 +312,9 @@ bool HImGui::Render(HGUIWindow& GUIWindow)
 
 void HImGui::DestroyGUIWindow(HGUIWindow& GUIWindow)
 {
-	WaitForAllSubmittedFrames();
+	// Flush the CommandQueue
+	HDirectX::SignalFence(GUIWindow.DirectXContext->CommandQueue, GUIWindow.Fence, GUIWindow.FenceValue);
+	HDirectX::WaitForFence(GUIWindow.Fence, GUIWindow.FenceValue);
 
 	HImGui::DestroyRenderTargets(GUIWindow);
 

@@ -171,11 +171,9 @@ void HHoney::UpdateScene(HScene& Scene, entt::entity CameraEntity)
 		});
 }
 
-void HHoney::SceneEditor(HScene& Scene)
+void HHoney::SceneEditor(HScene& Scene, entt::entity& SelectedEntity)
 {
 	ImGui::Text("Cameras");
-
-	static entt::entity SelectedEntity = entt::null;
 
 	Scene.Registry.view<HCamera>().each([&](entt::entity Entity, HCamera& Camera) {
 		if (ImGui::TreeNodeEx(std::format("Camera_{}", (uint32_t)Entity).c_str(), ImGuiTreeNodeFlags_Leaf))

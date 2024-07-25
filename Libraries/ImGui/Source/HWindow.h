@@ -44,6 +44,10 @@ struct HGUIWindow
 	HWND WindowHandle;
 	HDirectXContext* DirectXContext = nullptr;
 
+	// Keep a fence for ourselvs to flush the CommandQueue before modifying the SwapChain
+	HFence Fence{};
+	uint64_t FenceValue = 0;
+
 	ID3D12DescriptorHeap* RTV_DescHeap = nullptr;
 	HDescriptorHeap CBVSRVUAV_DescHeap{};
 
