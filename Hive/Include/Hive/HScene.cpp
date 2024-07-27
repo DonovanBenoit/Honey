@@ -293,7 +293,7 @@ void HHoney::DetailsPanel(HTexture& Texture)
 	ImGui::Text("Height %d", Texture.Resolution.y);
 
 	static float Color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	ImGui::ColorPicker4("Color", Color);
+	ImGui::ColorEdit4("Color", Color);
 
 	static float Scale = 8.0f;
 	Scale += ImGui::GetIO().MouseWheel;
