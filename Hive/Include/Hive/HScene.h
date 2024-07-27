@@ -28,6 +28,12 @@ struct HMesh
 	std::vector<uint32_t> Indicies;
 };
 
+enum class HTextureFlags : uint32_t
+{
+	None = 0,
+	RenderTarget = 1
+};
+
 struct HTexture
 {
 	std::filesystem::path Path = "";
@@ -35,6 +41,7 @@ struct HTexture
 	uint64_t Version = 0;
 	std::vector<uint8_t> Data{};
 	glm::uvec2 Resolution{};
+	HTextureFlags Flags;
 
 	HResource Resource{};
 	HDescriptor Descriptor{};
@@ -116,7 +123,7 @@ struct HScene
 	entt::entity CreateSphere();
 	entt::entity CreateSDF();
 	entt::entity CreatePointLight();
-	entt::entity CreateTexture(const glm::uvec2& Resolution);
+	entt::entity CreateTexture(const glm::uvec2& Resolution, HTextureFlags TextureFlags = HTextureFlags::None);
 
 	template<typename T>
 	T& Get(entt::entity Entity)

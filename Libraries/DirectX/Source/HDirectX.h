@@ -151,7 +151,8 @@ namespace HDirectX
 		HResource& Resource,
 		ID3D12Device* Device,
 		const glm::uvec2& Resolution,
-		DXGI_FORMAT Format = DXGI_FORMAT_R8G8B8A8_UNORM);
+		DXGI_FORMAT Format = DXGI_FORMAT_R8G8B8A8_UNORM,
+		bool IsRenderTarget = false);
 	bool CreateOrUpdateUnorderedBufferResource(
 		ID3D12Resource** Resource,
 		ID3D12Device* Device,

@@ -218,7 +218,8 @@ bool HDirectX::CreateOrUpdateUnorderedTextureResource(
 	HResource& Resource,
 	ID3D12Device* Device,
 	const glm::uvec2& Resolution,
-	DXGI_FORMAT Format)
+	DXGI_FORMAT Format,
+	bool IsRenderTarget)
 {
 	if (Resource.Resource != nullptr)
 	{
@@ -247,6 +248,11 @@ bool HDirectX::CreateOrUpdateUnorderedTextureResource(
 	TextureDesc.SampleDesc.Quality = 0;
 	TextureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	TextureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+	if (IsRenderTarget)
+	{
+		TextureDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+	}
 
 	// Create the texture resource
 	CD3DX12_HEAP_PROPERTIES DefaultHeapProperties(D3D12_HEAP_TYPE_DEFAULT);

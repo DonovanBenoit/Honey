@@ -6,13 +6,12 @@
 #include <glm/gtx/color_space.hpp>
 #include <imgui.h>
 
-
 entt::entity HScene::CreateTransformNode(entt::entity Parent)
 {
 	entt::entity Entity = Registry.create();
 	HWorldTransform& WorldTransform = Registry.emplace<HWorldTransform>(Entity);
 	HRelativeTransform& RelativeTransform = Registry.emplace<HRelativeTransform>(Entity);
-	
+
 	if (Parent != entt::null)
 	{
 		if (Registry.any_of<HNode>(Parent))
@@ -41,7 +40,7 @@ entt::entity HScene::CreateTransformNode(entt::entity Parent)
 
 	HNode& Node = Registry.emplace<HNode>(Entity);
 	Node.Parent = Parent;
-	
+
 	return Entity;
 }
 
@@ -126,12 +125,13 @@ entt::entity HScene::CreatePointLight()
 	return Entity;
 }
 
-entt::entity HScene::CreateTexture(const glm::uvec2& Resolution)
+entt::entity HScene::CreateTexture(const glm::uvec2& Resolution, HTextureFlags TextureFlags)
 {
 	entt::entity Entity = Registry.create();
 	HTexture& Texture = Registry.emplace<HTexture>(Entity);
 	Texture.Resolution = Resolution;
 	Texture.Data.resize(Resolution.x * Resolution.y * 4);
+	Texture.Flags = TextureFlags;
 	return Entity;
 }
 
@@ -173,7 +173,12 @@ void HHoney::UpdateScene(HScene& Scene, entt::entity CameraEntity)
 
 void HHoney::SceneEditor(HScene& Scene, entt::entity& SelectedEntity)
 {
-	ImGui::Text("Cameras");
+	ImGui::Text("Scene:");
+	ImGui::Indent();
+	ImGui::Text(std::format("FPS: {}", ImGui::GetIO().Framerate).c_str());
+	ImGui::Unindent();
+
+	ImGui::Text("Cameras:");
 
 	Scene.Registry.view<HCamera>().each([&](entt::entity Entity, HCamera& Camera) {
 		if (ImGui::TreeNodeEx(std::format("Camera_{}", (uint32_t)Entity).c_str(), ImGuiTreeNodeFlags_Leaf))
@@ -186,9 +191,9 @@ void HHoney::SceneEditor(HScene& Scene, entt::entity& SelectedEntity)
 		}
 	});
 
-	ImGui::Text("Materials");
+	ImGui::Text("Materials:");
 
-	ImGui::Text("Textures");
+	ImGui::Text("Textures:");
 	Scene.Registry.view<HTexture>().each([&](entt::entity Entity, HTexture& Texture) {
 		if (ImGui::TreeNodeEx(std::format("Texture_{}", (uint32_t)Entity).c_str(), ImGuiTreeNodeFlags_Leaf))
 		{
@@ -308,9 +313,9 @@ void HHoney::DetailsPanel(HTexture& Texture)
 		ImVec4{ 1, 1, 1, 1 });
 
 	glm::vec2 MousePosInImage = glm::vec2(ImGui::GetMousePos()) - CursorPos;
-	glm::uvec2 PixelInImage = glm::floor(MousePosInImage / Scale);
+	glm::vec2 PixelInImage = glm::floor(MousePosInImage / Scale);
 
-	if (PixelInImage.x >= 0u && PixelInImage.y >= 0u && PixelInImage.x < Texture.Resolution.x
+	if (PixelInImage.x >= 0.0f && PixelInImage.y >= 0.0f && PixelInImage.x < Texture.Resolution.x
 		&& PixelInImage.y < Texture.Resolution.y)
 	{
 		uint64_t Pixel = PixelInImage.y * Texture.Resolution.x + PixelInImage.x;
@@ -330,13 +335,13 @@ void HHoney::DetailsPanel(HTexture& Texture)
 			Color[2] = static_cast<float>(Texture.Data.data()[Pixel * 4 + 2]) / 255.0f;
 			Color[3] = static_cast<float>(Texture.Data.data()[Pixel * 4 + 3]) / 255.0f;
 		}
-	}
 
-	ImGui::SetTooltip(std::format(
-						  "MousePos = [{}, {}] -> [{}, {}]",
-						  MousePosInImage.x,
-						  MousePosInImage.y,
-						  PixelInImage.x,
-						  PixelInImage.y)
-						  .c_str());
+		ImGui::SetTooltip(std::format(
+			"MousePos = [{}, {}] -> [{}, {}]",
+			MousePosInImage.x,
+			MousePosInImage.y,
+			PixelInImage.x,
+			PixelInImage.y)
+			.c_str());
+	}
 }
