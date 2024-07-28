@@ -47,15 +47,15 @@ struct HGUIWindow
 	// Keep a fence for ourselvs to flush the CommandQueue before modifying the SwapChain
 	HFence Fence{};
 	uint64_t FenceValue = 0;
-
-	ID3D12DescriptorHeap* RTV_DescHeap = nullptr;
+	
+	HDescriptorHeap RTV_DescHeap{};
 	HDescriptorHeap CBVSRVUAV_DescHeap{};
 
 	HDescriptor ImGuiDescriptor{};
 
 	static int32_t const NUM_BACK_BUFFERS = 3;
 	ID3D12Resource* RenderTargetResource[NUM_BACK_BUFFERS] = {};
-	D3D12_CPU_DESCRIPTOR_HANDLE RenderTargetDescriptor[NUM_BACK_BUFFERS] = {};
+	HDescriptor RenderTargetDescriptors[NUM_BACK_BUFFERS] = {};
 	HSwapChain SwapChain{};
 #endif // _WIN32
 

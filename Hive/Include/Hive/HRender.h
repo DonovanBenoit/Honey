@@ -42,98 +42,6 @@ private:
 	uint32_t UAVRegisterCount = 0;
 };
 
-template<uint64_t Size>
-struct HCBVSRVUAVDescriptorHeap
-{
-	bool Create(ID3D12Device* Device)
-	{
-		DescriptorSize = Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
-		/*if (!HDirectX::CreateCBVSRVUAVHeap(&DescriptorHeap, Device, Size))
-		{
-			return false;
-		}*/
-
-		CPUHandleForHeapStart = DescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-		GPUHandleForHeapStart = DescriptorHeap->GetGPUDescriptorHandleForHeapStart();
-
-		return true;
-	}
-
-	bool CreateOrUpdateHandle(int64_t& HeapIndex, ID3D12Resource* Resource, uint64_t Count, ID3D12Device* Device)
-	{
-		if (HeapIndex < 0)
-		{
-			if (Offset >= Size)
-			{
-				return false;
-			}
-			HeapIndex = Offset;
-			Offset++;
-		}
-
-		if (HeapIndex >= Size)
-		{
-			return false;
-		}
-
-		// UAV
-		D3D12_RESOURCE_DESC ResourceDesc = Resource->GetDesc();
-		if (ResourceDesc.Flags & D3D12_RESOURCE_FLAGS::D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
-		{
-			D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc{};
-			switch (ResourceDesc.Dimension)
-			{
-				case D3D12_RESOURCE_DIMENSION_BUFFER:
-				{
-					UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-					UAVDesc.Format = ResourceDesc.Format;
-					UAVDesc.Buffer.NumElements = Count;
-					assert(ResourceDesc.Width % Count == 0);
-					UAVDesc.Buffer.StructureByteStride = ResourceDesc.Width / Count;
-					UAVDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
-					break;
-				}
-				case D3D12_RESOURCE_DIMENSION_TEXTURE2D:
-				{
-					UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-					UAVDesc.Format = ResourceDesc.Format;
-					UAVDesc.Texture2D.MipSlice = 0;
-					UAVDesc.Texture2D.PlaneSlice = 0;
-					break;
-				}
-				default:
-					return false;
-			}
-
-			CD3DX12_CPU_DESCRIPTOR_HANDLE UAVHandle = CPUHandleForHeapStart;
-			UAVHandle.Offset(DescriptorSize * HeapIndex);
-			Device->CreateUnorderedAccessView(Resource, nullptr, &UAVDesc, UAVHandle);
-			return true;
-		}
-
-		return false;
-	}
-
-	CD3DX12_GPU_DESCRIPTOR_HANDLE GetGPUHandle(int64_t HeapIndex)
-	{
-		if (HeapIndex < 0 || HeapIndex >= Size)
-		{
-			return {};
-		}
-
-		CD3DX12_GPU_DESCRIPTOR_HANDLE GPUHandle = GPUHandleForHeapStart;
-		GPUHandle.Offset(DescriptorSize * HeapIndex);
-		return GPUHandle;
-	}
-
-	ID3D12DescriptorHeap* DescriptorHeap = nullptr;
-	int64_t Offset = 0;
-	uint32_t DescriptorSize = 0;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE CPUHandleForHeapStart{};
-	CD3DX12_GPU_DESCRIPTOR_HANDLE GPUHandleForHeapStart{};
-};
-
 struct HComputePass
 {
 	ID3D12CommandQueue* CommandQueue = nullptr;
@@ -146,9 +54,9 @@ struct HComputePass
 
 	std::atomic<bool> TriggerShaderRebuild = false;
 
-	HCBVSRVUAVDescriptorHeap<16384> CBVSRVUAVDescriptorHeap;
+	HDescriptorHeap CBVSRVUAVDescriptorHeap{};
 
-	HRootSignature RootSignature;
+	HRootSignature RootSignature{};
 
 	// Microsoft::WRL::ComPtr<ID3D12PipelineState> GetSphereDistancePipelineState = nullptr;
 
@@ -156,8 +64,8 @@ struct HComputePass
 
 	glm::vec2 Resolution{};
 
-	ID3D12Resource* OutputResource = nullptr;
-	int64_t OutputHeapIndex = -1;
+	HResource OutputResource{};
+	HDescriptor OutputDescriptor{};
 
 	/*ID3D12Resource* MarchDistanceResource = nullptr;
 	int64_t MarchDistanceHeapIndex = -1;
@@ -167,19 +75,19 @@ struct HComputePass
 
 	ID3D12Resource* SpheresResource = nullptr;
 	ID3D12Resource* SpheresUploadResource = nullptr;
-	int64_t SpheresHeapIndex = -1;
+	HDescriptor SpheresDescriptor{};
 
 	ID3D12Resource* MaterialsResource = nullptr;
 	ID3D12Resource* MaterialsUploadResource = nullptr;
-	int64_t MaterialsHeapIndex = -1;
+	HDescriptor MaterialsDescriptor{};
 
 	ID3D12Resource* SceneResource = nullptr;
 	ID3D12Resource* SceneUploadResource = nullptr;
-	int64_t SceneHeapIndex = -1;
+	HDescriptor SceneDescriptor{};
 
 	ID3D12Resource* SDFsResource = nullptr;
 	ID3D12Resource* SDFsUploadResource = nullptr;
-	int64_t SDFsHeapIndex = -1;
+	HDescriptor SDFsDescriptor{};
 
 	std::future<bool> RenderFuture{};
 };

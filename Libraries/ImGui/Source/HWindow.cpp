@@ -56,21 +56,14 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	}
 
 	// RTV
-	if (!HDirectX::CreateRTVHeap(
-			&GUIWindow.RTV_DescHeap,
-			GUIWindow.DirectXContext->Device,
-			HGUIWindow::NUM_BACK_BUFFERS))
+	if (!HDirectX::CreateRTVHeap(GUIWindow.RTV_DescHeap, GUIWindow.DirectXContext->Device, 1024))
 	{
 		HImGui::DestroyGUIWindow(GUIWindow);
 		return false;
 	}
-	SIZE_T RTVDescriptorSize =
-		GUIWindow.DirectXContext->Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	D3D12_CPU_DESCRIPTOR_HANDLE RTVHandle = GUIWindow.RTV_DescHeap->GetCPUDescriptorHandleForHeapStart();
 	for (UINT i = 0; i < HGUIWindow::NUM_BACK_BUFFERS; i++)
 	{
-		GUIWindow.RenderTargetDescriptor[i] = RTVHandle;
-		RTVHandle.ptr += RTVDescriptorSize;
+		GUIWindow.RenderTargetDescriptors[i] = GUIWindow.RTV_DescHeap.AllocateDescriptor();
 	}
 
 	// CBVSRVUAV
@@ -278,12 +271,12 @@ bool HImGui::Render(HGUIWindow& GUIWindow)
 
 	// Render Dear ImGui graphics
 	GUIWindow.DirectXContext->CommandList->ClearRenderTargetView(
-		GUIWindow.RenderTargetDescriptor[BackBufferIndex],
+		GUIWindow.RenderTargetDescriptors[BackBufferIndex].CPUDescriptorHandle,
 		reinterpret_cast<float*>(&ClearColor),
 		0,
 		NULL);
 	GUIWindow.DirectXContext->CommandList
-		->OMSetRenderTargets(1, &GUIWindow.RenderTargetDescriptor[BackBufferIndex], FALSE, NULL);
+		->OMSetRenderTargets(1, &GUIWindow.RenderTargetDescriptors[BackBufferIndex].CPUDescriptorHandle, FALSE, NULL);
 	GUIWindow.DirectXContext->CommandList->SetDescriptorHeaps(1, &GUIWindow.CBVSRVUAV_DescHeap.DescriptorHeap);
 	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), GUIWindow.DirectXContext->CommandList);
 
@@ -329,11 +322,7 @@ void HImGui::DestroyGUIWindow(HGUIWindow& GUIWindow)
 		CloseHandle(GUIWindow.SwapChain.SwapChainWaitableObject);
 	}
 
-	if (GUIWindow.RTV_DescHeap != nullptr)
-	{
-		GUIWindow.RTV_DescHeap->Release();
-		GUIWindow.RTV_DescHeap = nullptr;
-	}
+	GUIWindow.RTV_DescHeap.Release();
 	GUIWindow.CBVSRVUAV_DescHeap.Release();
 
 	CleanupDeviceD3D();
@@ -445,7 +434,10 @@ void HImGui::CreateRenderTargets(HGUIWindow& GUIWindow)
 	{
 		ID3D12Resource* pBackBuffer = NULL;
 		GUIWindow.SwapChain.SwapChain->GetBuffer(i, IID_PPV_ARGS(&pBackBuffer));
-		DirectXContext.Device->CreateRenderTargetView(pBackBuffer, NULL, GUIWindow.RenderTargetDescriptor[i]);
+		DirectXContext.Device->CreateRenderTargetView(
+			pBackBuffer,
+			NULL,
+			GUIWindow.RenderTargetDescriptors[i].CPUDescriptorHandle);
 		GUIWindow.RenderTargetResource[i] = pBackBuffer;
 	}
 }

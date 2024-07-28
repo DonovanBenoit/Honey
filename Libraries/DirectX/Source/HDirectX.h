@@ -119,7 +119,7 @@ struct HDescriptorHeap
 namespace HDirectX
 {
 	bool CreateDeviceD3D(ID3D12Device** Device, HWND HWND);
-	bool CreateRTVHeap(ID3D12DescriptorHeap** RTVDescHeap, ID3D12Device* Device, uint32_t DescriptorCount);
+	bool CreateRTVHeap(HDescriptorHeap& RTVDescHeap, ID3D12Device* Device, uint32_t DescriptorCount);
 	bool CreateCBVSRVUAVHeap(HDescriptorHeap& CBVSRVUAVDescHeap, ID3D12Device* Device, uint32_t DescriptorCount);
 	bool CreateCommandQueue(
 		ID3D12CommandQueue** CommandQueue,
@@ -135,6 +135,8 @@ namespace HDirectX
 		ID3D12CommandAllocator* CommandAllocator,
 		ID3D12Device* Device,
 		D3D12_COMMAND_LIST_TYPE Type);
+
+	bool CreateOrUpdateUAV(HDescriptor& Descriptor, ID3D12Resource* Resource, uint64_t Count, HDescriptorHeap& DescriptorHeap, ID3D12Device* Device);
 
 	bool CreateRootSignature(
 		Microsoft::WRL::ComPtr<ID3D12RootSignature>& RootSiganature,

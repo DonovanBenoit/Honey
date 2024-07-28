@@ -41,18 +41,19 @@ bool HDirectX::CreateDeviceD3D(ID3D12Device** Device, HWND HWND)
 	return true;
 }
 
-bool HDirectX::CreateRTVHeap(ID3D12DescriptorHeap** RTVDescHeap, ID3D12Device* Device, uint32_t DescriptorCount)
+bool HDirectX::CreateRTVHeap(HDescriptorHeap& RTVDescHeap, ID3D12Device* Device, uint32_t DescriptorCount)
 {
 	{
-		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-		desc.NumDescriptors = DescriptorCount;
-		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-		desc.NodeMask = 1;
-		if (Device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(RTVDescHeap)) != S_OK)
+		D3D12_DESCRIPTOR_HEAP_DESC DescriptorHeapDesc = {};
+		DescriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+		DescriptorHeapDesc.NumDescriptors = DescriptorCount;
+		DescriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+		DescriptorHeapDesc.NodeMask = 1;
+		if (Device->CreateDescriptorHeap(&DescriptorHeapDesc, IID_PPV_ARGS(&RTVDescHeap.DescriptorHeap)) != S_OK)
 		{
 			return false;
 		}
+		RTVDescHeap.HeapIncrementSize = Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
 		return true;
 	}
@@ -68,7 +69,6 @@ bool HDirectX::CreateCBVSRVUAVHeap(HDescriptorHeap& CBVSRVUAVDescHeap, ID3D12Dev
 	{
 		return false;
 	}
-
 	CBVSRVUAVDescHeap.HeapIncrementSize =
 		Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
@@ -123,6 +123,58 @@ bool HDirectX::CreateCommandList(
 		return false;
 	}
 	return true;
+}
+
+bool HDirectX::CreateOrUpdateUAV(
+	HDescriptor& Descriptor,
+	ID3D12Resource* Resource,
+	uint64_t Count,
+	HDescriptorHeap& DescriptorHeap,
+	ID3D12Device* Device)
+{
+	if (Descriptor.CPUDescriptorHandle.ptr == 0)
+	{
+		Descriptor = DescriptorHeap.AllocateDescriptor();
+	}
+
+	// UAV
+	D3D12_RESOURCE_DESC ResourceDesc = Resource->GetDesc();
+	if (ResourceDesc.Flags & D3D12_RESOURCE_FLAGS::D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
+	{
+		D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc{};
+		switch (ResourceDesc.Dimension)
+		{
+			case D3D12_RESOURCE_DIMENSION_BUFFER:
+			{
+				UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+				UAVDesc.Format = ResourceDesc.Format;
+				UAVDesc.Buffer.NumElements = Count;
+				assert(ResourceDesc.Width % Count == 0);
+				UAVDesc.Buffer.StructureByteStride = ResourceDesc.Width / Count;
+				UAVDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+				break;
+			}
+			case D3D12_RESOURCE_DIMENSION_TEXTURE2D:
+			{
+				UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+				UAVDesc.Format = ResourceDesc.Format;
+				UAVDesc.Texture2D.MipSlice = 0;
+				UAVDesc.Texture2D.PlaneSlice = 0;
+				break;
+			}
+			default:
+				assert(false);
+				return false;
+		}
+
+		Device->CreateUnorderedAccessView(Resource, nullptr, &UAVDesc, Descriptor.CPUDescriptorHandle);
+		return true;
+	}
+	else
+	{
+		assert(false);
+		return false;
+	}
 }
 
 bool HDirectX::CreateRootSignature(

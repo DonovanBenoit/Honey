@@ -45,6 +45,7 @@ struct HTexture
 
 	HResource Resource{};
 	HDescriptor Descriptor{};
+	HDescriptor RTVDescriptor{};
 };
 
 struct HRenderedSphere

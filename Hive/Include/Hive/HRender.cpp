@@ -145,7 +145,7 @@ bool HRootSignature::Build(HGUIWindow& GUIWindow)
 	CD3DX12_ROOT_SIGNATURE_DESC RootSignatureDesc;
 
 	RootSignatureDesc.Init(
-		D3DRootParameters.size(),
+		static_cast<UINT>(D3DRootParameters.size()),
 		D3DRootParameters.data(),
 		0,
 		nullptr,
@@ -209,7 +209,7 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 		return false;
 	}
 
-	if (!ComputePass.CBVSRVUAVDescriptorHeap.Create(GUIWindow.DirectXContext->Device))
+	if (!HDirectX::CreateCBVSRVUAVHeap(ComputePass.CBVSRVUAVDescriptorHeap, GUIWindow.DirectXContext->Device, 1000000))
 	{
 		return false;
 	}
@@ -218,22 +218,23 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 
 	// Output
 	{
-		/*if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
-				&ComputePass.OutputResource,
+		if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
+				ComputePass.OutputResource,
 				GUIWindow.DirectXContext->Device,
 				ComputePass.Resolution))
 		{
 			return false;
 		}
 		ComputePass.RootSignature.AddRootParameter("Output", HRootParameterType::UAV);
-		if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
-				ComputePass.OutputHeapIndex,
-				ComputePass.OutputResource,
+		if (!HDirectX::CreateOrUpdateUAV(
+				ComputePass.OutputDescriptor,
+				ComputePass.OutputResource.Resource,
 				1,
+				ComputePass.CBVSRVUAVDescriptorHeap,
 				GUIWindow.DirectXContext->Device))
 		{
 			return false;
-		}*/
+		}
 	}
 
 	// Spheres
@@ -248,10 +249,11 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 			return false;
 		}
 		ComputePass.RootSignature.AddRootParameter("Spheres", HRootParameterType::UAV);
-		if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
-				ComputePass.SpheresHeapIndex,
+		if (!HDirectX::CreateOrUpdateUAV(
+				ComputePass.SpheresDescriptor,
 				ComputePass.SpheresResource,
 				SphereCount,
+				ComputePass.CBVSRVUAVDescriptorHeap,
 				GUIWindow.DirectXContext->Device))
 		{
 			return false;
@@ -270,10 +272,11 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 			return false;
 		}
 		ComputePass.RootSignature.AddRootParameter("Materials", HRootParameterType::UAV);
-		if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
-				ComputePass.MaterialsHeapIndex,
+		if (!HDirectX::CreateOrUpdateUAV(
+				ComputePass.MaterialsDescriptor,
 				ComputePass.MaterialsResource,
 				MaterialCount,
+				ComputePass.CBVSRVUAVDescriptorHeap,
 				GUIWindow.DirectXContext->Device))
 		{
 			return false;
@@ -291,10 +294,11 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 			return false;
 		}
 		ComputePass.RootSignature.AddRootParameter("Scene", HRootParameterType::UAV);
-		if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
-				ComputePass.SceneHeapIndex,
+		if (!HDirectX::CreateOrUpdateUAV(
+				ComputePass.SceneDescriptor,
 				ComputePass.SceneResource,
 				1,
+				ComputePass.CBVSRVUAVDescriptorHeap,
 				GUIWindow.DirectXContext->Device))
 		{
 			return false;
@@ -313,10 +317,11 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 			return false;
 		}
 		ComputePass.RootSignature.AddRootParameter("SDFs", HRootParameterType::UAV);
-		if (!ComputePass.CBVSRVUAVDescriptorHeap.CreateOrUpdateHandle(
-				ComputePass.SDFsHeapIndex,
+		if (!HDirectX::CreateOrUpdateUAV(
+				ComputePass.SDFsDescriptor,
 				ComputePass.SDFsResource,
 				SDFCount,
+				ComputePass.CBVSRVUAVDescriptorHeap,
 				GUIWindow.DirectXContext->Device))
 		{
 			return false;
@@ -537,21 +542,15 @@ bool HHoney::RenderComputePass(
 		{
 			ComputePass.CommandList->SetDescriptorHeaps(1, &ComputePass.CBVSRVUAVDescriptorHeap.DescriptorHeap);
 			ComputePass.CommandList->SetComputeRootSignature(ComputePass.RootSignature.RootSiganature.Get());
-			ComputePass.CommandList->SetComputeRootDescriptorTable(
-				0,
-				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.OutputHeapIndex));
+			ComputePass.CommandList->SetComputeRootDescriptorTable(0, ComputePass.OutputDescriptor.GPUDescriptorHandle);
 			ComputePass.CommandList->SetComputeRootDescriptorTable(
 				1,
-				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SpheresHeapIndex));
+				ComputePass.SpheresDescriptor.GPUDescriptorHandle);
 			ComputePass.CommandList->SetComputeRootDescriptorTable(
 				2,
-				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.MaterialsHeapIndex));
-			ComputePass.CommandList->SetComputeRootDescriptorTable(
-				3,
-				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SceneHeapIndex));
-			ComputePass.CommandList->SetComputeRootDescriptorTable(
-				4,
-				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.SDFsHeapIndex));
+				ComputePass.MaterialsDescriptor.GPUDescriptorHandle);
+			ComputePass.CommandList->SetComputeRootDescriptorTable(3, ComputePass.SceneDescriptor.GPUDescriptorHandle);
+			ComputePass.CommandList->SetComputeRootDescriptorTable(4, ComputePass.SDFsDescriptor.GPUDescriptorHandle);
 			/*ComputePass.CommandList->SetComputeRootDescriptorTable(
 				5,
 				ComputePass.CBVSRVUAVDescriptorHeap.GetGPUHandle(ComputePass.MarchDistanceHeapIndex));
