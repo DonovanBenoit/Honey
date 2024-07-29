@@ -618,8 +618,6 @@ bool HHoney::RenderRenderPass(
 	RenderPass.CommandList->IASetVertexBuffers(0, 1, &RenderPass.VertexBufferView);
 	RenderPass.CommandList->DrawInstanced(3, 1, 0, 0);
 
-	// Indicate that the back buffer will now be used to present.
-
 	D3D12_RESOURCE_BARRIER EndBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(
 		RenderPass.OutputResource.Resource,
 		D3D12_RESOURCE_STATE_RENDER_TARGET,

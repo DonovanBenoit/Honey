@@ -12,6 +12,7 @@
 struct HGUIImage;
 struct HGUIWindow;
 struct HScene;
+struct HTexture;
 
 enum class HRootParameterType : uint32_t
 {
