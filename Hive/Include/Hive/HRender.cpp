@@ -110,7 +110,7 @@ void HRootSignature::AddRootParameter(std::string_view Name, HRootParameterType 
 			RootParameter.ShaderRegister = UAVRegisterCount;
 			UAVRegisterCount++;
 			RootParameter.DescriptorRangeOffset = static_cast<uint32_t>(DescriptorRanges.size());
-			CD3DX12_DESCRIPTOR_RANGE& DescriptorRange = DescriptorRanges.emplace_back();
+			CD3DX12_DESCRIPTOR_RANGE1& DescriptorRange = DescriptorRanges.emplace_back();
 			DescriptorRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, RootParameter.ShaderRegister);
 		}
 		break;
@@ -120,12 +120,12 @@ void HRootSignature::AddRootParameter(std::string_view Name, HRootParameterType 
 	}
 }
 
-bool HRootSignature::Build(HGUIWindow& GUIWindow)
+bool HRootSignature::Build(HDirectXContext& DirectXContext, D3D12_ROOT_SIGNATURE_FLAGS RootSignatureFlags)
 {
-	std::vector<CD3DX12_ROOT_PARAMETER> D3DRootParameters{};
+	std::vector<CD3DX12_ROOT_PARAMETER1> D3DRootParameters{};
 	for (HRootParameter& RootParameter : RootParameters)
 	{
-		CD3DX12_ROOT_PARAMETER& D3DRootParameter = D3DRootParameters.emplace_back();
+		CD3DX12_ROOT_PARAMETER1& D3DRootParameter = D3DRootParameters.emplace_back();
 
 		switch (RootParameter.RootParameterType)
 		{
@@ -142,16 +142,32 @@ bool HRootSignature::Build(HGUIWindow& GUIWindow)
 		}
 	}
 
-	CD3DX12_ROOT_SIGNATURE_DESC RootSignatureDesc;
+	// Static Sampler
+	D3D12_STATIC_SAMPLER_DESC StaticSampler = {};
+	StaticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+	StaticSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	StaticSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	StaticSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	StaticSampler.MipLODBias = 0;
+	StaticSampler.MaxAnisotropy = 0;
+	StaticSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	StaticSampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+	StaticSampler.MinLOD = 0.0f;
+	StaticSampler.MaxLOD = D3D12_FLOAT32_MAX;
+	StaticSampler.ShaderRegister = 0;
+	StaticSampler.RegisterSpace = 0;
+	StaticSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-	RootSignatureDesc.Init(
+	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC RootSignatureDesc;
+
+	RootSignatureDesc.Init_1_1(
 		static_cast<UINT>(D3DRootParameters.size()),
 		D3DRootParameters.data(),
-		0,
-		nullptr,
-		D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
+		1,
+		&StaticSampler,
+		RootSignatureFlags);
 
-	if (!HDirectX::CreateRootSignature(RootSiganature, RootSignatureDesc, GUIWindow.DirectXContext->Device))
+	if (!HDirectX::CreateRootSignature(RootSiganature, RootSignatureDesc, DirectXContext.Device))
 	{
 		return false;
 	}
@@ -369,7 +385,7 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 		}
 	}*/
 
-	ComputePass.RootSignature.Build(GUIWindow);
+	ComputePass.RootSignature.Build(*GUIWindow.DirectXContext);
 
 	if (!HDirectX::CreateComputePipelineState(
 			ComputePass.PipelineState,
@@ -383,6 +399,241 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 
 	return true;
 };
+
+bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& RenderPass)
+{
+	if (!HDirectX::CreateCommandAllocator(
+			&RenderPass.CommandAllocator,
+			DirectXContext.Device,
+			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT))
+	{
+		return false;
+	}
+
+	if (!HDirectX::CreateCommandList(
+			&RenderPass.CommandList,
+			RenderPass.CommandAllocator,
+			DirectXContext.Device,
+			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT))
+	{
+		return false;
+	}
+
+	if (!HDirectX::CreateCommandAllocator(
+			&RenderPass.UpdateCommandAllocator,
+			DirectXContext.Device,
+			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT))
+	{
+		return false;
+	}
+
+	if (!HDirectX::CreateCommandList(
+			&RenderPass.UpdateCommandList,
+			RenderPass.UpdateCommandAllocator,
+			DirectXContext.Device,
+			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT))
+	{
+		return false;
+	}
+
+	if (!HDirectX::CreateFence(RenderPass.Fence, DirectXContext.Device))
+	{
+		return false;
+	}
+
+	if (!HDirectX::CreateCBVSRVUAVHeap(RenderPass.CBVSRVUAVDescriptorHeap, DirectXContext.Device, 1000000))
+	{
+		return false;
+	}
+
+	if (!HDirectX::CreateRTVHeap(RenderPass.RTVDescriptorHeap, DirectXContext.Device, 8))
+	{
+		return false;
+	}
+
+	RenderPass.OutputResolution = { 1024, 1024 };
+
+	// Output Resources
+	{
+		if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
+				RenderPass.OutputResource,
+				DirectXContext.Device,
+				RenderPass.OutputResolution,
+				DXGI_FORMAT_R8G8B8A8_UNORM,
+				true))
+		{
+			return false;
+		}
+		if (!HDirectX::CreateOrUpdateRTV(
+				RenderPass.OutputRTVDescriptor,
+				RenderPass.OutputResource.Resource,
+				RenderPass.RTVDescriptorHeap,
+				DirectXContext.Device))
+		{
+			return false;
+		}
+	}
+
+	RenderPass.RootSignature.Build(DirectXContext, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+	Microsoft::WRL::ComPtr<ID3DBlob> VSBlob;
+	if (!HDirectX::CompileShader("Shaders/Hive/HRenderPass.hlsl", "VSMain", "vs_5_0", VSBlob))
+	{
+		return false;
+	}
+
+	Microsoft::WRL::ComPtr<ID3DBlob> PSBlob;
+	if (!HDirectX::CompileShader("Shaders/Hive/HRenderPass.hlsl", "PSMain", "ps_5_0", PSBlob))
+	{
+		return false;
+	}
+
+	// Define the vertex input layout.
+	D3D12_INPUT_ELEMENT_DESC InputElementDescs[] = {
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+	};
+
+	// Describe and create the graphics pipeline state object (PSO).
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC PipelineStateObjectDesc = {};
+	PipelineStateObjectDesc.InputLayout = { InputElementDescs, _countof(InputElementDescs) };
+	PipelineStateObjectDesc.pRootSignature = RenderPass.RootSignature.RootSiganature.Get();
+	PipelineStateObjectDesc.VS = CD3DX12_SHADER_BYTECODE(VSBlob.Get());
+	PipelineStateObjectDesc.PS = CD3DX12_SHADER_BYTECODE(PSBlob.Get());
+	PipelineStateObjectDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	PipelineStateObjectDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	PipelineStateObjectDesc.DepthStencilState.DepthEnable = FALSE;
+	PipelineStateObjectDesc.DepthStencilState.StencilEnable = FALSE;
+	PipelineStateObjectDesc.SampleMask = UINT_MAX;
+	PipelineStateObjectDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	PipelineStateObjectDesc.NumRenderTargets = 1;
+	PipelineStateObjectDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	PipelineStateObjectDesc.SampleDesc.Count = 1;
+	HRESULT Result = DirectXContext.Device->CreateGraphicsPipelineState(
+		&PipelineStateObjectDesc,
+		IID_PPV_ARGS(&RenderPass.PipelineState));
+	if (!SUCCEEDED(Result))
+	{
+		return false;
+	}
+
+	// Create the vertex buffer.
+	{
+		struct HVertex
+		{
+			glm::vec3 Position;
+			glm::vec2 UV;
+		};
+
+		// Define the geometry for a triangle.
+		HVertex TriangleVertices[] = { { { 0.0f, 0.25f, 0.0f }, { 0.5f, 0.0f } },
+									   { { 0.25f, -0.25f, 0.0f }, { 1.0f, 1.0f } },
+									   { { -0.25f, -0.25f, 0.0f }, { 0.0f, 1.0f } } };
+
+		const UINT VertexBufferSize = sizeof(TriangleVertices);
+
+		// Note: using upload heaps to transfer static data like vert buffers is not
+		// recommended. Every time the GPU needs it, the upload heap will be marshalled
+		// over. Please read up on Default Heap usage. An upload heap is used here for
+		// code simplicity and because there are very few verts to actually transfer.
+		CD3DX12_RESOURCE_DESC VertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(VertexBufferSize);
+		CD3DX12_HEAP_PROPERTIES UploadHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+		Result = DirectXContext.Device->CreateCommittedResource(
+			&UploadHeapProperties,
+			D3D12_HEAP_FLAG_NONE,
+			&VertexBufferDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&RenderPass.VertexBufferResource));
+		if (!SUCCEEDED(Result))
+		{
+			return false;
+		}
+
+		// Copy the triangle data to the vertex buffer.
+		UINT8* VertexDataBegin;
+		CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
+		Result = RenderPass.VertexBufferResource->Map(0, &ReadRange, reinterpret_cast<void**>(&VertexDataBegin));
+		if (!SUCCEEDED(Result))
+		{
+			return false;
+		}
+		memcpy(VertexDataBegin, TriangleVertices, sizeof(TriangleVertices));
+		RenderPass.VertexBufferResource->Unmap(0, nullptr);
+
+		// Initialize the vertex buffer view.
+		RenderPass.VertexBufferView.BufferLocation = RenderPass.VertexBufferResource->GetGPUVirtualAddress();
+		RenderPass.VertexBufferView.StrideInBytes = sizeof(HVertex);
+		RenderPass.VertexBufferView.SizeInBytes = VertexBufferSize;
+	}
+
+	return true;
+}
+
+bool HHoney::RenderRenderPass(
+	HDirectXContext& DirectXContext,
+	HRenderPass& RenderPass,
+	HScene& Scene,
+	const glm::vec2& Resolution)
+{
+	// Command list allocators can only be reset when the associated
+	// command lists have finished execution on the GPU; apps should use
+	// fences to determine GPU execution progress.
+	if (!CheckResult(RenderPass.CommandAllocator->Reset()))
+		return false;
+
+	// However, when ExecuteCommandList() is called on a particular command
+	// list, that command list can then be reset at any time and must be before
+	// re-recording.
+	if (!CheckResult(RenderPass.CommandList->Reset(RenderPass.CommandAllocator, RenderPass.PipelineState.Get())))
+		return false;
+
+	// Set necessary state.
+	RenderPass.CommandList->SetGraphicsRootSignature(RenderPass.RootSignature.RootSiganature.Get());
+
+	ID3D12DescriptorHeap* Heaps[] = { RenderPass.CBVSRVUAVDescriptorHeap.DescriptorHeap };
+	RenderPass.CommandList->SetDescriptorHeaps(_countof(Heaps), Heaps);
+
+	// RenderPass.CommandList->SetGraphicsRootDescriptorTable(0, m_srvHeap->GetGPUDescriptorHandleForHeapStart());
+
+	CD3DX12_VIEWPORT Viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, Resolution.x, Resolution.y);
+	CD3DX12_RECT ScissorRect = CD3DX12_RECT(0, 0, Resolution.x, Resolution.y);
+
+	RenderPass.CommandList->RSSetViewports(1, &Viewport);
+	RenderPass.CommandList->RSSetScissorRects(1, &ScissorRect);
+
+	// Indicate that the back buffer will be used as a render target.
+	D3D12_RESOURCE_BARRIER StartBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(
+		RenderPass.OutputResource.Resource,
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_RENDER_TARGET) };
+	RenderPass.CommandList->ResourceBarrier(_countof(StartBarriers), StartBarriers);
+	RenderPass.CommandList->OMSetRenderTargets(1, &RenderPass.OutputRTVDescriptor.CPUDescriptorHandle, FALSE, nullptr);
+
+	// Record commands.
+	const float ClearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	RenderPass.CommandList
+		->ClearRenderTargetView(RenderPass.OutputRTVDescriptor.CPUDescriptorHandle, ClearColor, 0, nullptr);
+	RenderPass.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	RenderPass.CommandList->IASetVertexBuffers(0, 1, &RenderPass.VertexBufferView);
+	RenderPass.CommandList->DrawInstanced(3, 1, 0, 0);
+
+	// Indicate that the back buffer will now be used to present.
+
+	D3D12_RESOURCE_BARRIER EndBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(
+		RenderPass.OutputResource.Resource,
+		D3D12_RESOURCE_STATE_RENDER_TARGET,
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE) };
+	RenderPass.CommandList->ResourceBarrier(_countof(EndBarriers), EndBarriers);
+
+	if (!CheckResult(RenderPass.CommandList->Close()))
+		return false;
+
+	ID3D12CommandList* CommandLists[] = { RenderPass.CommandList };
+	DirectXContext.CommandQueue->ExecuteCommandLists(_countof(CommandLists), CommandLists);
+
+	return true;
+}
 
 bool HHoney::RenderComputePass(
 	HGUIWindow& GUIWindow,

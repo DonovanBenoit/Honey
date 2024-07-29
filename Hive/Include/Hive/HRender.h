@@ -29,14 +29,16 @@ struct HRootParameter
 
 struct HRootSignature
 {
-	std::vector<CD3DX12_DESCRIPTOR_RANGE> DescriptorRanges{};
+	std::vector<CD3DX12_DESCRIPTOR_RANGE1> DescriptorRanges{};
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> RootSiganature = nullptr;
 
 	std::vector<HRootParameter> RootParameters{};
 
 	void AddRootParameter(std::string_view Name, HRootParameterType RootParameterType);
 
-	bool Build(HGUIWindow& GUIWindow);
+	bool Build(
+		HDirectXContext& DirectXContext,
+		D3D12_ROOT_SIGNATURE_FLAGS RootSignatureFlags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
 
 private:
 	uint32_t UAVRegisterCount = 0;
@@ -92,6 +94,33 @@ struct HComputePass
 	std::future<bool> RenderFuture{};
 };
 
+struct HRenderPass
+{
+	ID3D12CommandQueue* CommandQueue = nullptr;
+	ID3D12CommandAllocator* CommandAllocator = nullptr;
+	ID3D12GraphicsCommandList* CommandList = nullptr;
+	ID3D12GraphicsCommandList* UpdateCommandList = nullptr;
+	ID3D12CommandAllocator* UpdateCommandAllocator = nullptr;
+	HFence Fence{};
+	uint64_t FenceValue = 0;
+
+	std::atomic<bool> TriggerShaderRebuild = false;
+
+	HDescriptorHeap CBVSRVUAVDescriptorHeap{};
+	HDescriptorHeap RTVDescriptorHeap{};
+
+	HRootSignature RootSignature{};
+
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> PipelineState = nullptr;
+
+	glm::vec2 OutputResolution{};
+	HResource OutputResource{};
+	HDescriptor OutputRTVDescriptor{};
+
+	Microsoft::WRL::ComPtr<ID3D12Resource> VertexBufferResource = nullptr;
+	D3D12_VERTEX_BUFFER_VIEW VertexBufferView;
+};
+
 struct HRenderWindow
 {
 	HComputePass ComputePass{};
@@ -103,6 +132,15 @@ namespace HHoney
 	void DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity CameraEntity, HRenderWindow& RenderWindow);
 
 	bool CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass);
+
+	bool CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& RenderPass);
+
+	bool RenderRenderPass(
+		HDirectXContext& DirectXContext,
+		HRenderPass& RenderPass,
+		HScene& Scene,
+		const glm::vec2& Resolution);
+
 	bool RenderComputePass(
 		HGUIWindow& GUIWindow,
 		HComputePass& ComputePass,

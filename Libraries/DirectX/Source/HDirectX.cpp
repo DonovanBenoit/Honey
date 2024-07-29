@@ -177,16 +177,42 @@ bool HDirectX::CreateOrUpdateUAV(
 	}
 }
 
+bool HDirectX::CreateOrUpdateRTV(
+	HDescriptor& Descriptor,
+	ID3D12Resource* Resource,
+	HDescriptorHeap& DescriptorHeap,
+	ID3D12Device* Device)
+{
+	if (Descriptor.CPUDescriptorHandle.ptr == 0)
+	{
+		Descriptor = DescriptorHeap.AllocateDescriptor();
+	}
+
+	Device->CreateRenderTargetView(Resource, nullptr, Descriptor.CPUDescriptorHandle);
+
+	return true;
+}
+
 bool HDirectX::CreateRootSignature(
 	Microsoft::WRL::ComPtr<ID3D12RootSignature>& RootSiganature,
-	CD3DX12_ROOT_SIGNATURE_DESC& RootSignatureDesc,
+	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC& RootSignatureDesc,
 	ID3D12Device* Device)
 {
 	ID3DBlob* SignatureBlob = nullptr;
 	ID3DBlob* ErrorBlob = nullptr;
 
-	HRESULT Result =
-		D3D12SerializeRootSignature(&RootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &SignatureBlob, &ErrorBlob);
+	D3D12_FEATURE_DATA_ROOT_SIGNATURE FeatureData = {};
+	FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
+	if (FAILED(Device->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &FeatureData, sizeof(FeatureData))))
+	{
+		FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
+	}
+
+	HRESULT Result = D3DX12SerializeVersionedRootSignature(
+		&RootSignatureDesc,
+		FeatureData.HighestVersion,
+		&SignatureBlob,
+		&ErrorBlob);
 	if (Result != S_OK)
 	{
 		if (SignatureBlob != nullptr)
@@ -221,6 +247,36 @@ bool HDirectX::CreateRootSignature(
 #include <d3dcompiler.h>
 // #include <wrl/client.h>
 
+bool HDirectX::CompileShader(
+	const std::filesystem::path& ShaderPath,
+	std::string_view EntryPoint,
+	std::string_view Target,
+	Microsoft::WRL::ComPtr<ID3DBlob>& ShaderBlob)
+{
+	// Compile the shader
+	Microsoft::WRL::ComPtr<ID3DBlob> ErrorBlob;
+	HRESULT Result = D3DCompileFromFile(
+		ShaderPath.c_str(),
+		nullptr,
+		D3D_COMPILE_STANDARD_FILE_INCLUDE,
+		EntryPoint.data(),
+		Target.data(),
+		0,
+		0,
+		&ShaderBlob,
+		&ErrorBlob);
+	if (FAILED(Result))
+	{
+		// Handle compilation error
+		if (ErrorBlob)
+		{
+			OutputDebugStringA((char*)ErrorBlob->GetBufferPointer());
+		}
+		return false;
+	}
+	return true;
+}
+
 bool HDirectX::CreateComputePipelineState(
 	Microsoft::WRL::ComPtr<ID3D12PipelineState>& PipelineState,
 	const std::filesystem::path& ShaderPath,
@@ -230,24 +286,8 @@ bool HDirectX::CreateComputePipelineState(
 {
 	// Compile the compute shader
 	Microsoft::WRL::ComPtr<ID3DBlob> ComputeShaderBlob;
-	Microsoft::WRL::ComPtr<ID3DBlob> ErrorBlob;
-	HRESULT Result = D3DCompileFromFile(
-		ShaderPath.c_str(),
-		nullptr,
-		D3D_COMPILE_STANDARD_FILE_INCLUDE,
-		EntryPoint.data(),
-		"cs_5_0",
-		0,
-		0,
-		&ComputeShaderBlob,
-		&ErrorBlob);
-	if (FAILED(Result))
+	if (!CompileShader(ShaderPath, EntryPoint, "cs_5_0", ComputeShaderBlob))
 	{
-		// Handle compilation error
-		if (ErrorBlob)
-		{
-			OutputDebugStringA((char*)ErrorBlob->GetBufferPointer());
-		}
 		return false;
 	}
 
@@ -261,7 +301,7 @@ bool HDirectX::CreateComputePipelineState(
 	Desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 	Desc.CS = ComputeShaderBytecode;
 
-	Result = Device->CreateComputePipelineState(&Desc, IID_PPV_ARGS(&PipelineState));
+	HRESULT Result = Device->CreateComputePipelineState(&Desc, IID_PPV_ARGS(&PipelineState));
 
 	return Result == S_OK;
 }
@@ -301,10 +341,21 @@ bool HDirectX::CreateOrUpdateUnorderedTextureResource(
 	TextureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	TextureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 
+	D3D12_CLEAR_VALUE BlackClearValue{};
+	D3D12_CLEAR_VALUE* ClearValue = nullptr;
 	if (IsRenderTarget)
 	{
 		TextureDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+		BlackClearValue.Color[0] = 0.0f;
+		BlackClearValue.Color[1] = 0.0f;
+		BlackClearValue.Color[2] = 0.0f;
+		BlackClearValue.Color[3] = 1.0f;
+		BlackClearValue.Format = Format;
+
+		ClearValue = &BlackClearValue;
 	}
+
 
 	// Create the texture resource
 	CD3DX12_HEAP_PROPERTIES DefaultHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
@@ -313,7 +364,7 @@ bool HDirectX::CreateOrUpdateUnorderedTextureResource(
 		D3D12_HEAP_FLAG_NONE,
 		&TextureDesc,
 		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-		nullptr,
+		ClearValue,
 		IID_PPV_ARGS(&Resource.Resource));
 
 	return SUCCEEDED(Result);

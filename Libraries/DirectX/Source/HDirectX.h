@@ -136,11 +136,28 @@ namespace HDirectX
 		ID3D12Device* Device,
 		D3D12_COMMAND_LIST_TYPE Type);
 
-	bool CreateOrUpdateUAV(HDescriptor& Descriptor, ID3D12Resource* Resource, uint64_t Count, HDescriptorHeap& DescriptorHeap, ID3D12Device* Device);
+	bool CreateOrUpdateUAV(
+		HDescriptor& Descriptor,
+		ID3D12Resource* Resource,
+		uint64_t Count,
+		HDescriptorHeap& DescriptorHeap,
+		ID3D12Device* Device);
+
+	bool CreateOrUpdateRTV(
+		HDescriptor& Descriptor,
+		ID3D12Resource* Resource,
+		HDescriptorHeap& DescriptorHeap,
+		ID3D12Device* Device);
+
+	bool CompileShader(
+		const std::filesystem::path& ShaderPath,
+		std::string_view EntryPoint,
+		std::string_view Target,
+		Microsoft::WRL::ComPtr<ID3DBlob>& ShaderBlob);
 
 	bool CreateRootSignature(
 		Microsoft::WRL::ComPtr<ID3D12RootSignature>& RootSiganature,
-		CD3DX12_ROOT_SIGNATURE_DESC& RootSignatureDesc,
+		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC& RootSignatureDesc,
 		ID3D12Device* Device);
 	bool CreateComputePipelineState(
 		Microsoft::WRL::ComPtr<ID3D12PipelineState>& PipelineState,
@@ -186,5 +203,16 @@ namespace HDirectX
 	}
 
 }; // namespace HDirectX
+
+inline bool CheckResult(HRESULT Result)
+{
+	if (FAILED(Result))
+	{
+		assert(false);
+		return false;
+	}
+
+	return true;
+}
 
 #endif // _WIN32
