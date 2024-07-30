@@ -95,6 +95,13 @@ struct HComputePass
 	std::future<bool> RenderFuture{};
 };
 
+
+struct HVertex
+{
+	glm::vec3 Position;
+	glm::vec2 UV;
+};
+
 struct HRenderPass
 {
 	ID3D12CommandQueue* CommandQueue = nullptr;
@@ -121,6 +128,7 @@ struct HRenderPass
 
 	Microsoft::WRL::ComPtr<ID3D12Resource> VertexBufferResource = nullptr;
 	D3D12_VERTEX_BUFFER_VIEW VertexBufferView;
+	HVertex* VertexBufferData = nullptr;
 };
 
 struct HRenderWindow

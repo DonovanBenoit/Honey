@@ -400,12 +400,6 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	return true;
 };
 
-struct HVertex
-{
-	glm::vec3 Position;
-	glm::vec2 UV;
-};
-
 bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& RenderPass, const glm::vec2& Resolution)
 {
 	if (!HDirectX::CreateCommandAllocator(
@@ -549,16 +543,14 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 			return false;
 		}
 
-		// Copy the triangle data to the vertex buffer.
-		UINT8* VertexDataBegin;
+		// Map the GPU buffer so we can write to it
 		CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
-		Result = RenderPass.VertexBufferResource->Map(0, &ReadRange, reinterpret_cast<void**>(&VertexDataBegin));
+		Result = RenderPass.VertexBufferResource->Map(0, &ReadRange, reinterpret_cast<void**>(&RenderPass.VertexBufferData));
 		if (!SUCCEEDED(Result))
 		{
 			return false;
 		}
-		memcpy(VertexDataBegin, TriangleVertices, sizeof(TriangleVertices));
-		RenderPass.VertexBufferResource->Unmap(0, nullptr);
+		memcpy(RenderPass.VertexBufferData, TriangleVertices, sizeof(TriangleVertices));
 
 		// Initialize the vertex buffer view.
 		RenderPass.VertexBufferView.BufferLocation = RenderPass.VertexBufferResource->GetGPUVirtualAddress();
@@ -576,14 +568,28 @@ bool HHoney::RenderRenderPass(
 	const glm::vec2& Resolution)
 {
 	// Check to see if we have finished rendering to the back buffer
-	if (RenderPass.FenceValue > 0 && !HDirectX::CheckFenceComplete(RenderPass.Fence, RenderPass.FenceValue))
+	if (RenderPass.FenceValue > 0)
 	{
-		return true;
+		if (!HDirectX::CheckFenceComplete(RenderPass.Fence, RenderPass.FenceValue))
+		{
+			return true;
+		}
 	}
 
 	// Swap Buffers
 	RenderPass.FrontBufferIndex = (RenderPass.FrontBufferIndex + 1) % HRenderPass::OutputBufferCount;
 	uint64_t BackBufferIndex = (RenderPass.FrontBufferIndex + 1) % HRenderPass::OutputBufferCount;
+
+	// Update Scene
+	{
+		static float Angle = 0.0f;
+		Angle += 0.001f;
+		HVertex TriangleVertices[] = { { glm::angleAxis(Angle, glm::vec3(0.0f, 0.0f, -1.0f)) * glm::vec3{ 0.0f, 0.25f, 0.0f }, { 0.5f, 0.0f } },
+									   { glm::angleAxis(Angle, glm::vec3(0.0f, 0.0f, -1.0f)) * glm::vec3{ 0.25f, -0.25f, 0.0f }, { 1.0f, 1.0f } },
+									   { glm::angleAxis(Angle, glm::vec3(0.0f, 0.0f, -1.0f)) * glm::vec3{ -0.25f, -0.25f, 0.0f }, { 0.0f, 1.0f } } };
+		const UINT VertexBufferSize = sizeof(TriangleVertices);
+		memcpy(RenderPass.VertexBufferData, TriangleVertices, sizeof(TriangleVertices));
+	}
 
 	// Command list allocators can only be reset when the associated
 	// command lists have finished execution on the GPU; apps should use

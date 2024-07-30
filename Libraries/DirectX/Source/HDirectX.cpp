@@ -545,11 +545,11 @@ bool HDirectX::CheckFenceComplete(const HFence& Fence, UINT64 FenceValue)
 		return true;
 	}
 
-	Fence.Fence->SetEventOnCompletion(FenceValue, Fence.FenceEvent);
+	/*Fence.Fence->SetEventOnCompletion(FenceValue, Fence.FenceEvent);
 	if (WaitForSingleObject(Fence.FenceEvent, 0) == WAIT_OBJECT_0)
 	{
 		return true;
-	}
+	}*/
 
 	return false;
 }
