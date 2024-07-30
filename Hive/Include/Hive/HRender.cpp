@@ -400,7 +400,13 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	return true;
 };
 
-bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& RenderPass)
+struct HVertex
+{
+	glm::vec3 Position;
+	glm::vec2 UV;
+};
+
+bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& RenderPass, const glm::vec2& Resolution)
 {
 	if (!HDirectX::CreateCommandAllocator(
 			&RenderPass.CommandAllocator,
@@ -451,22 +457,21 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 		return false;
 	}
 
-	RenderPass.OutputResolution = { 1024, 1024 };
-
 	// Output Resources
+	for (uint64_t OutputResource = 0; OutputResource < HRenderPass::OutputBufferCount; OutputResource++)
 	{
 		if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
-				RenderPass.OutputResource,
+				RenderPass.OutputResources[OutputResource],
 				DirectXContext.Device,
-				RenderPass.OutputResolution,
+				Resolution,
 				DXGI_FORMAT_R8G8B8A8_UNORM,
 				true))
 		{
 			return false;
 		}
 		if (!HDirectX::CreateOrUpdateRTV(
-				RenderPass.OutputRTVDescriptor,
-				RenderPass.OutputResource.Resource,
+				RenderPass.OutputRTVDescriptors[OutputResource],
+				RenderPass.OutputResources[OutputResource].Resource,
 				RenderPass.RTVDescriptorHeap,
 				DirectXContext.Device))
 		{
@@ -519,12 +524,6 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 
 	// Create the vertex buffer.
 	{
-		struct HVertex
-		{
-			glm::vec3 Position;
-			glm::vec2 UV;
-		};
-
 		// Define the geometry for a triangle.
 		HVertex TriangleVertices[] = { { { 0.0f, 0.25f, 0.0f }, { 0.5f, 0.0f } },
 									   { { 0.25f, -0.25f, 0.0f }, { 1.0f, 1.0f } },
@@ -576,6 +575,16 @@ bool HHoney::RenderRenderPass(
 	HScene& Scene,
 	const glm::vec2& Resolution)
 {
+	// Check to see if we have finished rendering to the back buffer
+	if (RenderPass.FenceValue > 0 && !HDirectX::CheckFenceComplete(RenderPass.Fence, RenderPass.FenceValue))
+	{
+		return true;
+	}
+
+	// Swap Buffers
+	RenderPass.FrontBufferIndex = (RenderPass.FrontBufferIndex + 1) % HRenderPass::OutputBufferCount;
+	uint64_t BackBufferIndex = (RenderPass.FrontBufferIndex + 1) % HRenderPass::OutputBufferCount;
+
 	// Command list allocators can only be reset when the associated
 	// command lists have finished execution on the GPU; apps should use
 	// fences to determine GPU execution progress.
@@ -604,22 +613,26 @@ bool HHoney::RenderRenderPass(
 
 	// Indicate that the back buffer will be used as a render target.
 	D3D12_RESOURCE_BARRIER StartBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(
-		RenderPass.OutputResource.Resource,
+		RenderPass.OutputResources[BackBufferIndex].Resource,
 		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 		D3D12_RESOURCE_STATE_RENDER_TARGET) };
 	RenderPass.CommandList->ResourceBarrier(_countof(StartBarriers), StartBarriers);
-	RenderPass.CommandList->OMSetRenderTargets(1, &RenderPass.OutputRTVDescriptor.CPUDescriptorHandle, FALSE, nullptr);
+	RenderPass.CommandList
+		->OMSetRenderTargets(1, &RenderPass.OutputRTVDescriptors[BackBufferIndex].CPUDescriptorHandle, FALSE, nullptr);
 
 	// Record commands.
 	const float ClearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-	RenderPass.CommandList
-		->ClearRenderTargetView(RenderPass.OutputRTVDescriptor.CPUDescriptorHandle, ClearColor, 0, nullptr);
+	RenderPass.CommandList->ClearRenderTargetView(
+		RenderPass.OutputRTVDescriptors[BackBufferIndex].CPUDescriptorHandle,
+		ClearColor,
+		0,
+		nullptr);
 	RenderPass.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	RenderPass.CommandList->IASetVertexBuffers(0, 1, &RenderPass.VertexBufferView);
 	RenderPass.CommandList->DrawInstanced(3, 1, 0, 0);
 
 	D3D12_RESOURCE_BARRIER EndBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(
-		RenderPass.OutputResource.Resource,
+		RenderPass.OutputResources[BackBufferIndex].Resource,
 		D3D12_RESOURCE_STATE_RENDER_TARGET,
 		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE) };
 	RenderPass.CommandList->ResourceBarrier(_countof(EndBarriers), EndBarriers);
@@ -629,6 +642,10 @@ bool HHoney::RenderRenderPass(
 
 	ID3D12CommandList* CommandLists[] = { RenderPass.CommandList };
 	DirectXContext.CommandQueue->ExecuteCommandLists(_countof(CommandLists), CommandLists);
+
+	// This might not work for more than 2 buffers
+	static_assert(HRenderPass::OutputBufferCount == 2);
+	HDirectX::SignalFence(DirectXContext.CommandQueue, RenderPass.Fence, RenderPass.FenceValue);
 
 	return true;
 }

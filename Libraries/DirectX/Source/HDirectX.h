@@ -194,7 +194,8 @@ namespace HDirectX
 		ID3D12CommandQueue* CommandQueue,
 		ID3D12Device* Device);
 	bool SignalFence(ID3D12CommandQueue* CommandQueue, HFence& Fence, UINT64& FenceValue);
-	void WaitForFence(HFence& Fence, UINT64& FenceValue);
+	bool CheckFenceComplete(const HFence& Fence, UINT64 FenceValue);
+	void WaitForFence(const HFence& Fence, UINT64 FenceValue);
 
 	template<size_t Count>
 	void ExecuteCommandLists(ID3D12CommandQueue* CommandQueue, const std::array<ID3D12CommandList*, Count> CommandLists)

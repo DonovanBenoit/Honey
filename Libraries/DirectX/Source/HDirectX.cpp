@@ -538,7 +538,23 @@ bool HDirectX::SignalFence(ID3D12CommandQueue* CommandQueue, HFence& Fence, UINT
 	return true;
 }
 
-void HDirectX::WaitForFence(HFence& Fence, UINT64& FenceValue)
+bool HDirectX::CheckFenceComplete(const HFence& Fence, UINT64 FenceValue)
+{
+	if (Fence.Fence->GetCompletedValue() >= FenceValue)
+	{
+		return true;
+	}
+
+	Fence.Fence->SetEventOnCompletion(FenceValue, Fence.FenceEvent);
+	if (WaitForSingleObject(Fence.FenceEvent, 0) == WAIT_OBJECT_0)
+	{
+		return true;
+	}
+
+	return false;
+}
+
+void HDirectX::WaitForFence(const HFence& Fence, UINT64 FenceValue)
 {
 	if (Fence.Fence->GetCompletedValue() >= FenceValue)
 	{

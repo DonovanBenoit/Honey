@@ -114,9 +114,10 @@ struct HRenderPass
 
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> PipelineState = nullptr;
 
-	glm::vec2 OutputResolution{};
-	HResource OutputResource{};
-	HDescriptor OutputRTVDescriptor{};
+	uint64_t FrontBufferIndex = 0;
+	static const uint64_t OutputBufferCount = 2;
+	std::array<HResource, OutputBufferCount> OutputResources{};
+	std::array<HDescriptor, OutputBufferCount> OutputRTVDescriptors{};
 
 	Microsoft::WRL::ComPtr<ID3D12Resource> VertexBufferResource = nullptr;
 	D3D12_VERTEX_BUFFER_VIEW VertexBufferView;
@@ -134,7 +135,7 @@ namespace HHoney
 
 	bool CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass);
 
-	bool CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& RenderPass);
+	bool CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& RenderPass, const glm::vec2& Resolution);
 
 	bool RenderRenderPass(
 		HDirectXContext& DirectXContext,
