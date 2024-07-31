@@ -148,7 +148,7 @@ namespace HHoney
 	bool RenderRenderPass(
 		HDirectXContext& DirectXContext,
 		HRenderPass& RenderPass,
-		HScene& Scene,
+		const std::vector<HVertex>& Verticies,
 		const glm::vec2& Resolution);
 
 	bool RenderComputePass(

@@ -523,7 +523,7 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 									   { { 0.25f, -0.25f, 0.0f }, { 1.0f, 1.0f } },
 									   { { -0.25f, -0.25f, 0.0f }, { 0.0f, 1.0f } } };
 
-		const UINT VertexBufferSize = sizeof(TriangleVertices);
+		uint64_t VertexBufferSize = sizeof(TriangleVertices);
 
 		// Note: using upload heaps to transfer static data like vert buffers is not
 		// recommended. Every time the GPU needs it, the upload heap will be marshalled
@@ -545,7 +545,8 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 
 		// Map the GPU buffer so we can write to it
 		CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
-		Result = RenderPass.VertexBufferResource->Map(0, &ReadRange, reinterpret_cast<void**>(&RenderPass.VertexBufferData));
+		Result =
+			RenderPass.VertexBufferResource->Map(0, &ReadRange, reinterpret_cast<void**>(&RenderPass.VertexBufferData));
 		if (!SUCCEEDED(Result))
 		{
 			return false;
@@ -564,7 +565,7 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 bool HHoney::RenderRenderPass(
 	HDirectXContext& DirectXContext,
 	HRenderPass& RenderPass,
-	HScene& Scene,
+	const std::vector<HVertex>& Verticies,
 	const glm::vec2& Resolution)
 {
 	// Check to see if we have finished rendering to the back buffer
@@ -581,14 +582,47 @@ bool HHoney::RenderRenderPass(
 	uint64_t BackBufferIndex = (RenderPass.FrontBufferIndex + 1) % HRenderPass::OutputBufferCount;
 
 	// Update Scene
+	const uint64_t VertexBufferSize = sizeof(HVertex) * Verticies.size();
+	if (VertexBufferSize > 0)
 	{
-		static float Angle = 0.0f;
-		Angle += 0.001f;
-		HVertex TriangleVertices[] = { { glm::angleAxis(Angle, glm::vec3(0.0f, 0.0f, -1.0f)) * glm::vec3{ 0.0f, 0.25f, 0.0f }, { 0.5f, 0.0f } },
-									   { glm::angleAxis(Angle, glm::vec3(0.0f, 0.0f, -1.0f)) * glm::vec3{ 0.25f, -0.25f, 0.0f }, { 1.0f, 1.0f } },
-									   { glm::angleAxis(Angle, glm::vec3(0.0f, 0.0f, -1.0f)) * glm::vec3{ -0.25f, -0.25f, 0.0f }, { 0.0f, 1.0f } } };
-		const UINT VertexBufferSize = sizeof(TriangleVertices);
-		memcpy(RenderPass.VertexBufferData, TriangleVertices, sizeof(TriangleVertices));
+		// Resize the vertex buffer
+		if (RenderPass.VertexBufferView.SizeInBytes != VertexBufferSize)
+		{
+			RenderPass.VertexBufferResource->Unmap(0, nullptr);
+			// Note: using upload heaps to transfer static data like vert buffers is not
+			// recommended. Every time the GPU needs it, the upload heap will be marshalled
+			// over. Please read up on Default Heap usage. An upload heap is used here for
+			// code simplicity and because there are very few verts to actually transfer.
+			CD3DX12_RESOURCE_DESC VertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(VertexBufferSize);
+			CD3DX12_HEAP_PROPERTIES UploadHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+			if (!CheckResult(DirectXContext.Device->CreateCommittedResource(
+				&UploadHeapProperties,
+				D3D12_HEAP_FLAG_NONE,
+				&VertexBufferDesc,
+				D3D12_RESOURCE_STATE_GENERIC_READ,
+				nullptr,
+				IID_PPV_ARGS(&RenderPass.VertexBufferResource))))
+			{
+				return false;
+			}
+
+			// Map the GPU buffer so we can write to it
+			CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
+			if (!CheckResult(RenderPass.VertexBufferResource->Map(
+				0,
+				&ReadRange,
+				reinterpret_cast<void**>(&RenderPass.VertexBufferData))))
+			{
+				return false;
+			}
+
+			// Initialize the vertex buffer view.
+			RenderPass.VertexBufferView.BufferLocation = RenderPass.VertexBufferResource->GetGPUVirtualAddress();
+			RenderPass.VertexBufferView.StrideInBytes = sizeof(HVertex);
+			RenderPass.VertexBufferView.SizeInBytes = VertexBufferSize;
+		}
+
+		memcpy(RenderPass.VertexBufferData, Verticies.data(), VertexBufferSize);
 	}
 
 	// Command list allocators can only be reset when the associated
@@ -635,7 +669,7 @@ bool HHoney::RenderRenderPass(
 		nullptr);
 	RenderPass.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	RenderPass.CommandList->IASetVertexBuffers(0, 1, &RenderPass.VertexBufferView);
-	RenderPass.CommandList->DrawInstanced(3, 1, 0, 0);
+	RenderPass.CommandList->DrawInstanced(glm::max(3ull, Verticies.size()), 1, 0, 0);
 
 	D3D12_RESOURCE_BARRIER EndBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(
 		RenderPass.OutputResources[BackBufferIndex].Resource,
