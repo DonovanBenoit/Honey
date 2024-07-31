@@ -11,7 +11,8 @@ HPSInput VSMain(float4 Position : POSITION, float4 UV : TEXCOORD)
 {
     HPSInput Result;
 
-    Result.Position = Position;
+    Result.Position = Position * 0.001;
+    Result.Position.w = 1.0;
     Result.UV = UV;
 
     return Result;
