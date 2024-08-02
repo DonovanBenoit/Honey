@@ -136,6 +136,12 @@ namespace HDirectX
 		ID3D12Device* Device,
 		D3D12_COMMAND_LIST_TYPE Type);
 
+	bool CreateOrUpdateCBV(
+		HDescriptor& Descriptor,
+		HResource& Resource,
+		HDescriptorHeap& DescriptorHeap,
+		ID3D12Device* Device);
+
 	bool CreateOrUpdateUAV(
 		HDescriptor& Descriptor,
 		ID3D12Resource* Resource,
@@ -177,6 +183,10 @@ namespace HDirectX
 		ID3D12Device* Device,
 		size_t ElementSize,
 		size_t ElementCount);
+	bool CreateOrUpdateUploadBufferResource(
+		HResource& Resource,
+		ID3D12Device* Device,
+		size_t Size);
 
 	void CopyDataToResource(
 		ID3D12Resource* Resource,

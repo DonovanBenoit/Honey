@@ -95,11 +95,15 @@ struct HComputePass
 	std::future<bool> RenderFuture{};
 };
 
-
 struct HVertex
 {
 	glm::vec3 Position;
 	glm::vec2 UV;
+};
+
+struct HSceneBuffer
+{
+	glm::vec4 Translation;
 };
 
 struct HRenderPass
@@ -121,11 +125,18 @@ struct HRenderPass
 
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> PipelineState = nullptr;
 
+	// Output
 	uint64_t FrontBufferIndex = 0;
 	static const uint64_t OutputBufferCount = 2;
 	std::array<HResource, OutputBufferCount> OutputResources{};
 	std::array<HDescriptor, OutputBufferCount> OutputRTVDescriptors{};
 
+	// Scene
+	std::array<HResource, OutputBufferCount> SceneBufferResources{};
+	std::array<HDescriptor, OutputBufferCount> SceneBufferDescriptors{};
+	std::array<HSceneBuffer*, OutputBufferCount> MappedSceneBuffers{};
+
+	// Vertex
 	Microsoft::WRL::ComPtr<ID3D12Resource> VertexBufferResource = nullptr;
 	D3D12_VERTEX_BUFFER_VIEW VertexBufferView;
 	HVertex* VertexBufferData = nullptr;

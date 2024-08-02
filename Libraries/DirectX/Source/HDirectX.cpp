@@ -2,7 +2,7 @@
 
 namespace
 {
-	size_t AlignedSize(size_t Size, size_t ALignment)
+	size_t CalculateAlignedSize(size_t Size, size_t ALignment)
 	{
 		return ((Size + ALignment - 1) / ALignment) * ALignment;
 	}
@@ -123,6 +123,29 @@ bool HDirectX::CreateCommandList(
 		return false;
 	}
 	return true;
+}
+
+bool HDirectX::CreateOrUpdateCBV(
+	HDescriptor& Descriptor,
+	HResource& Resource,
+	HDescriptorHeap& DescriptorHeap,
+	ID3D12Device* Device)
+{
+	if (Descriptor.CPUDescriptorHandle.ptr == 0)
+	{
+		Descriptor = DescriptorHeap.AllocateDescriptor();
+	}
+
+	D3D12_RESOURCE_DESC ResourceDesc = Resource.Resource->GetDesc();
+	if (ResourceDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER)
+	{
+		return false;
+	}
+
+	D3D12_CONSTANT_BUFFER_VIEW_DESC CBVDesc{};
+	CBVDesc.BufferLocation = Resource.Resource->GetGPUVirtualAddress();
+	CBVDesc.SizeInBytes = ResourceDesc.Width;
+	Device->CreateConstantBufferView(&CBVDesc, Descriptor.CPUDescriptorHandle);
 }
 
 bool HDirectX::CreateOrUpdateUAV(
@@ -356,7 +379,6 @@ bool HDirectX::CreateOrUpdateUnorderedTextureResource(
 		ClearValue = &BlackClearValue;
 	}
 
-
 	// Create the texture resource
 	CD3DX12_HEAP_PROPERTIES DefaultHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
 	HRESULT Result = Device->CreateCommittedResource(
@@ -379,7 +401,7 @@ bool HDirectX::CreateOrUpdateUnorderedBufferResource(
 	if (*Resource != nullptr)
 	{
 		D3D12_RESOURCE_DESC BufferDesc = (*Resource)->GetDesc();
-		if (BufferDesc.Width == AlignedSize(ElementSize, 4) * ElementCount)
+		if (BufferDesc.Width == CalculateAlignedSize(ElementSize, 4) * ElementCount)
 		{
 			return true;
 		}
@@ -390,7 +412,7 @@ bool HDirectX::CreateOrUpdateUnorderedBufferResource(
 
 	CD3DX12_HEAP_PROPERTIES DefaultHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
 	D3D12_RESOURCE_DESC ResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(
-		AlignedSize(ElementSize, 4) * ElementCount,
+		CalculateAlignedSize(ElementSize, 4) * ElementCount,
 		D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 	HRESULT Result = Device->CreateCommittedResource(
 		&DefaultHeapProperties,
@@ -400,6 +422,29 @@ bool HDirectX::CreateOrUpdateUnorderedBufferResource(
 		nullptr,
 		IID_PPV_ARGS(Resource));
 	return SUCCEEDED(Result);
+}
+
+bool HDirectX::CreateOrUpdateUploadBufferResource(HResource& Resource, ID3D12Device* Device, size_t Size)
+{
+	// Constant buffers must be aligned to 256 bytes
+	size_t AlignedSize = CalculateAlignedSize(Size, 256);
+
+	if (Resource.Resource != nullptr)
+	{
+		ULONG Count = (Resource.Resource)->Release();
+		(Resource.Resource) = nullptr;
+	}
+
+	D3D12_HEAP_PROPERTIES UploadHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+	D3D12_RESOURCE_DESC BufferDesc = CD3DX12_RESOURCE_DESC::Buffer(Size);
+
+	return CheckResult(Device->CreateCommittedResource(
+		&UploadHeapProperties,
+		D3D12_HEAP_FLAG_NONE,
+		&BufferDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&Resource.Resource)));
 }
 
 void HDirectX::CopyDataToResource(

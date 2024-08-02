@@ -451,9 +451,9 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 		return false;
 	}
 
-	// Output Resources
 	for (uint64_t OutputResource = 0; OutputResource < HRenderPass::OutputBufferCount; OutputResource++)
 	{
+		// Output Resources
 		if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
 				RenderPass.OutputResources[OutputResource],
 				DirectXContext.Device,
@@ -468,6 +468,31 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 				RenderPass.OutputResources[OutputResource].Resource,
 				RenderPass.RTVDescriptorHeap,
 				DirectXContext.Device))
+		{
+			return false;
+		}
+
+		// Scene Resources
+		if (!HDirectX::CreateOrUpdateUploadBufferResource(
+				RenderPass.SceneBufferResources[OutputResource],
+				DirectXContext.Device,
+				sizeof(HSceneBuffer)))
+		{
+			return false;
+		}
+		if (!HDirectX::CreateOrUpdateCBV(
+				RenderPass.SceneBufferDescriptors[OutputResource],
+				RenderPass.SceneBufferResources[OutputResource],
+				RenderPass.CBVSRVUAVDescriptorHeap,
+				DirectXContext.Device))
+		{
+			return false;
+		}
+		CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
+		if (!CheckResult(RenderPass.SceneBufferResources[OutputResource].Resource->Map(
+				0,
+				&ReadRange,
+				reinterpret_cast<void**>(&RenderPass.MappedSceneBuffers[OutputResource]))))
 		{
 			return false;
 		}
@@ -596,22 +621,20 @@ bool HHoney::RenderRenderPass(
 			CD3DX12_RESOURCE_DESC VertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(VertexBufferSize);
 			CD3DX12_HEAP_PROPERTIES UploadHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 			if (!CheckResult(DirectXContext.Device->CreateCommittedResource(
-				&UploadHeapProperties,
-				D3D12_HEAP_FLAG_NONE,
-				&VertexBufferDesc,
-				D3D12_RESOURCE_STATE_GENERIC_READ,
-				nullptr,
-				IID_PPV_ARGS(&RenderPass.VertexBufferResource))))
+					&UploadHeapProperties,
+					D3D12_HEAP_FLAG_NONE,
+					&VertexBufferDesc,
+					D3D12_RESOURCE_STATE_GENERIC_READ,
+					nullptr,
+					IID_PPV_ARGS(&RenderPass.VertexBufferResource))))
 			{
 				return false;
 			}
 
 			// Map the GPU buffer so we can write to it
 			CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
-			if (!CheckResult(RenderPass.VertexBufferResource->Map(
-				0,
-				&ReadRange,
-				reinterpret_cast<void**>(&RenderPass.VertexBufferData))))
+			if (!CheckResult(RenderPass.VertexBufferResource
+								 ->Map(0, &ReadRange, reinterpret_cast<void**>(&RenderPass.VertexBufferData))))
 			{
 				return false;
 			}
