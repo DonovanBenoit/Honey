@@ -184,7 +184,7 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
 
-	ImFont* Font = ImGui::GetIO().Fonts->AddFontFromFileTTF("C://Windows//Fonts//Consola.ttf", 14);
+	ImFont* Font = ImGui::GetIO().Fonts->AddFontFromFileTTF("C://Windows//Fonts//Consola.ttf", 24);
 
 	// Setup Platform/Renderer backends
 	ImGui_ImplGlfw_InitForOther(GUIWindow.Window, true);
@@ -571,7 +571,7 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex)
 				&DefaultHeapProperties,
 				D3D12_HEAP_FLAG_NONE,
 				&ResourceDesc,
-				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 				nullptr,
 				IID_PPV_ARGS(&GUIImage.Resource));
 		}
@@ -641,7 +641,7 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex)
 					&DefaultHeapProperties,
 					D3D12_HEAP_FLAG_NONE,
 					&ResourceDesc,
-					D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+					D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 					nullptr,
 					IID_PPV_ARGS(&GUIImage.Resource));
 			}
@@ -695,7 +695,7 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex)
 	GUIWindow.DirectXContext->CopyCommandList->Reset(GUIWindow.DirectXContext->CopyCommandAllocator, nullptr);
 	CD3DX12_RESOURCE_BARRIER StartCopyBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
 		GUIImage.Resource,
-		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		D3D12_RESOURCE_STATE_COPY_DEST);
 	GUIWindow.DirectXContext->CopyCommandList->ResourceBarrier(1, &StartCopyBarrier);
 
@@ -715,7 +715,7 @@ bool HImGui::UploadImage(HGUIWindow& GUIWindow, int64_t ImageIndex)
 	CD3DX12_RESOURCE_BARRIER FinishCopyBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
 		GUIImage.Resource,
 		D3D12_RESOURCE_STATE_COPY_DEST,
-		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	GUIWindow.DirectXContext->CopyCommandList->ResourceBarrier(1, &FinishCopyBarrier);
 	GUIWindow.DirectXContext->CopyCommandList->Close();
 

@@ -98,20 +98,44 @@ void HHoney::DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity Camer
 			.c_str());
 }
 
-void HRootSignature::AddRootParameter(std::string_view Name, HRootParameterType RootParameterType)
+void HRootSignature::AddRootParameter(
+	std::string_view Name,
+	HRootParameterType RootParameterType,
+	HShaderVisibility ShaderVisibility)
 {
 	HRootParameter& RootParameter = RootParameters.emplace_back();
 	RootParameter.Name = Name;
 	RootParameter.RootParameterType = RootParameterType;
+	RootParameter.ShaderVisibility = ShaderVisibility;
 	switch (RootParameter.RootParameterType)
 	{
+		case HRootParameterType::SRV:
+		{
+			RootParameter.ShaderRegister = SRVRegisterCount++;
+			RootParameter.DescriptorRangeOffset = static_cast<uint32_t>(DescriptorRanges.size());
+			CD3DX12_DESCRIPTOR_RANGE1& DescriptorRange = DescriptorRanges.emplace_back();
+			DescriptorRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, RootParameter.ShaderRegister);
+		}
+		break;
 		case HRootParameterType::UAV:
 		{
-			RootParameter.ShaderRegister = UAVRegisterCount;
-			UAVRegisterCount++;
+			RootParameter.ShaderRegister = UAVRegisterCount++;
 			RootParameter.DescriptorRangeOffset = static_cast<uint32_t>(DescriptorRanges.size());
 			CD3DX12_DESCRIPTOR_RANGE1& DescriptorRange = DescriptorRanges.emplace_back();
 			DescriptorRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, RootParameter.ShaderRegister);
+		}
+		break;
+		case HRootParameterType::CBV:
+		{
+			RootParameter.ShaderRegister = CBVRegisterCount++;
+			RootParameter.DescriptorRangeOffset = static_cast<uint32_t>(DescriptorRanges.size());
+			CD3DX12_DESCRIPTOR_RANGE1& DescriptorRange = DescriptorRanges.emplace_back();
+			DescriptorRange.Init(
+				D3D12_DESCRIPTOR_RANGE_TYPE_CBV,
+				1,
+				RootParameter.ShaderRegister,
+				0,
+				D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
 		}
 		break;
 		case HRootParameterType::Unknown:
@@ -127,13 +151,30 @@ bool HRootSignature::Build(HDirectXContext& DirectXContext, D3D12_ROOT_SIGNATURE
 	{
 		CD3DX12_ROOT_PARAMETER1& D3DRootParameter = D3DRootParameters.emplace_back();
 
+		D3D12_SHADER_VISIBILITY ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		switch (RootParameter.ShaderVisibility)
+		{
+			case HShaderVisibility::All:
+				ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+				break;
+			case HShaderVisibility::Vertex:
+				ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+				break;
+			case HShaderVisibility::Pixel:
+				ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+				break;
+		}
+
 		switch (RootParameter.RootParameterType)
 		{
+			case HRootParameterType::SRV:
 			case HRootParameterType::UAV:
+			case HRootParameterType::CBV:
 			{
 				D3DRootParameter.InitAsDescriptorTable(
 					1,
-					DescriptorRanges.data() + RootParameter.DescriptorRangeOffset);
+					DescriptorRanges.data() + RootParameter.DescriptorRangeOffset,
+					ShaderVisibility);
 			}
 			break;
 			case HRootParameterType::Unknown:
@@ -498,6 +539,8 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 		}
 	}
 
+	RenderPass.RootSignature.AddRootParameter("SceneBuffer", HRootParameterType::CBV, HShaderVisibility::Vertex);
+	RenderPass.RootSignature.AddRootParameter("Texture", HRootParameterType::SRV, HShaderVisibility::Pixel);
 	RenderPass.RootSignature.Build(DirectXContext, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	Microsoft::WRL::ComPtr<ID3DBlob> VSBlob;
@@ -590,7 +633,10 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 bool HHoney::RenderRenderPass(
 	HDirectXContext& DirectXContext,
 	HRenderPass& RenderPass,
+	const glm::vec3& Translation,
+	const glm::vec3& Scale,
 	const std::vector<HVertex>& Verticies,
+	const HTexture& Texture,
 	const glm::vec2& Resolution)
 {
 	// Check to see if we have finished rendering to the back buffer
@@ -607,6 +653,8 @@ bool HHoney::RenderRenderPass(
 	uint64_t BackBufferIndex = (RenderPass.FrontBufferIndex + 1) % HRenderPass::OutputBufferCount;
 
 	// Update Scene
+	RenderPass.MappedSceneBuffers[BackBufferIndex]->Translation = glm::vec4(Translation, 0.0f);
+	RenderPass.MappedSceneBuffers[BackBufferIndex]->Scale = glm::vec4(Scale, 0.0f);
 	const uint64_t VertexBufferSize = sizeof(HVertex) * Verticies.size();
 	if (VertexBufferSize > 0)
 	{
@@ -666,7 +714,20 @@ bool HHoney::RenderRenderPass(
 	ID3D12DescriptorHeap* Heaps[] = { RenderPass.CBVSRVUAVDescriptorHeap.DescriptorHeap };
 	RenderPass.CommandList->SetDescriptorHeaps(_countof(Heaps), Heaps);
 
-	// RenderPass.CommandList->SetGraphicsRootDescriptorTable(0, m_srvHeap->GetGPUDescriptorHandleForHeapStart());
+	RenderPass.CommandList->SetGraphicsRootDescriptorTable(
+		0,
+		RenderPass.SceneBufferDescriptors[BackBufferIndex].GPUDescriptorHandle);
+
+	if (RenderPass.TextureDescriptors.empty())
+	{
+		HDescriptor& TextureDescriptor = RenderPass.TextureDescriptors.emplace_back();
+		HDirectX::CreateOrUpdateSRV(
+			TextureDescriptor,
+			Texture.Resource.Resource,
+			RenderPass.CBVSRVUAVDescriptorHeap,
+			DirectXContext.Device);
+	}
+	RenderPass.CommandList->SetGraphicsRootDescriptorTable(1, RenderPass.TextureDescriptors[0].GPUDescriptorHandle);
 
 	CD3DX12_VIEWPORT Viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, Resolution.x, Resolution.y);
 	CD3DX12_RECT ScissorRect = CD3DX12_RECT(0, 0, Resolution.x, Resolution.y);
@@ -677,7 +738,7 @@ bool HHoney::RenderRenderPass(
 	// Indicate that the back buffer will be used as a render target.
 	D3D12_RESOURCE_BARRIER StartBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(
 		RenderPass.OutputResources[BackBufferIndex].Resource,
-		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		D3D12_RESOURCE_STATE_RENDER_TARGET) };
 	RenderPass.CommandList->ResourceBarrier(_countof(StartBarriers), StartBarriers);
 	RenderPass.CommandList
@@ -697,7 +758,7 @@ bool HHoney::RenderRenderPass(
 	D3D12_RESOURCE_BARRIER EndBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(
 		RenderPass.OutputResources[BackBufferIndex].Resource,
 		D3D12_RESOURCE_STATE_RENDER_TARGET,
-		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE) };
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE) };
 	RenderPass.CommandList->ResourceBarrier(_countof(EndBarriers), EndBarriers);
 
 	if (!CheckResult(RenderPass.CommandList->Close()))

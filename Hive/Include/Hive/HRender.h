@@ -17,13 +17,23 @@ struct HTexture;
 enum class HRootParameterType : uint32_t
 {
 	Unknown,
-	UAV
+	SRV,
+	UAV,
+	CBV,
+};
+
+enum class HShaderVisibility
+{
+	All,
+	Vertex,
+	Pixel,
 };
 
 struct HRootParameter
 {
 	std::string Name = "";
 	HRootParameterType RootParameterType = HRootParameterType::Unknown;
+	HShaderVisibility ShaderVisibility = HShaderVisibility::All;
 	uint32_t ShaderRegister = 0;
 	uint32_t DescriptorRangeOffset = 0;
 };
@@ -35,14 +45,16 @@ struct HRootSignature
 
 	std::vector<HRootParameter> RootParameters{};
 
-	void AddRootParameter(std::string_view Name, HRootParameterType RootParameterType);
+	void AddRootParameter(std::string_view Name, HRootParameterType RootParameterType, HShaderVisibility ShaderVisibility = HShaderVisibility::All);
 
 	bool Build(
 		HDirectXContext& DirectXContext,
 		D3D12_ROOT_SIGNATURE_FLAGS RootSignatureFlags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
 
 private:
+	uint32_t SRVRegisterCount = 0;
 	uint32_t UAVRegisterCount = 0;
+	uint32_t CBVRegisterCount = 0;
 };
 
 struct HComputePass
@@ -104,6 +116,7 @@ struct HVertex
 struct HSceneBuffer
 {
 	glm::vec4 Translation;
+	glm::vec4 Scale;
 };
 
 struct HRenderPass
@@ -121,6 +134,8 @@ struct HRenderPass
 	HDescriptorHeap CBVSRVUAVDescriptorHeap{};
 	HDescriptorHeap RTVDescriptorHeap{};
 
+	std::vector<HDescriptor> TextureDescriptors{};
+
 	HRootSignature RootSignature{};
 
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> PipelineState = nullptr;
@@ -131,7 +146,7 @@ struct HRenderPass
 	std::array<HResource, OutputBufferCount> OutputResources{};
 	std::array<HDescriptor, OutputBufferCount> OutputRTVDescriptors{};
 
-	// Scene
+	// Scene Buffer
 	std::array<HResource, OutputBufferCount> SceneBufferResources{};
 	std::array<HDescriptor, OutputBufferCount> SceneBufferDescriptors{};
 	std::array<HSceneBuffer*, OutputBufferCount> MappedSceneBuffers{};
@@ -159,7 +174,10 @@ namespace HHoney
 	bool RenderRenderPass(
 		HDirectXContext& DirectXContext,
 		HRenderPass& RenderPass,
+		const glm::vec3& Translation,
+		const glm::vec3& Scale,
 		const std::vector<HVertex>& Verticies,
+		const HTexture& Texture,
 		const glm::vec2& Resolution);
 
 	bool RenderComputePass(

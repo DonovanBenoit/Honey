@@ -4,14 +4,23 @@ struct HPSInput
     float2 UV : TEXCOORD;
 };
 
-// Texture2D g_texture : register(t0);
-// SamplerState g_sampler : register(s0);
+Texture2D Texture : register(t0);
+SamplerState Sampler : register(s0);
+
+struct HSceneBuffer
+{
+    float4 Translation;
+    float4 Scale;
+    float4 Padding[14];
+};
+
+HSceneBuffer SceneBuffer : register(b0);
 
 HPSInput VSMain(float4 Position : POSITION, float4 UV : TEXCOORD)
 {
     HPSInput Result;
 
-    Result.Position = Position * 0.001;
+    Result.Position = (Position + SceneBuffer.Translation) * SceneBuffer.Scale / 1024.0;
     Result.Position.w = 1.0;
     Result.UV = UV;
 
@@ -20,5 +29,5 @@ HPSInput VSMain(float4 Position : POSITION, float4 UV : TEXCOORD)
 
 float4 PSMain(HPSInput Input) : SV_TARGET
 {
-    return float4(Input.UV, 0.4, 1.0);
+    return Texture.Sample(Sampler, Input.UV);
 }

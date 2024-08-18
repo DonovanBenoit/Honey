@@ -136,9 +136,9 @@ namespace HDirectX
 		ID3D12Device* Device,
 		D3D12_COMMAND_LIST_TYPE Type);
 
-	bool CreateOrUpdateCBV(
+	bool CreateOrUpdateSRV(
 		HDescriptor& Descriptor,
-		HResource& Resource,
+		ID3D12Resource* Resource,
 		HDescriptorHeap& DescriptorHeap,
 		ID3D12Device* Device);
 
@@ -146,6 +146,12 @@ namespace HDirectX
 		HDescriptor& Descriptor,
 		ID3D12Resource* Resource,
 		uint64_t Count,
+		HDescriptorHeap& DescriptorHeap,
+		ID3D12Device* Device);
+
+	bool CreateOrUpdateCBV(
+		HDescriptor& Descriptor,
+		HResource& Resource,
 		HDescriptorHeap& DescriptorHeap,
 		ID3D12Device* Device);
 

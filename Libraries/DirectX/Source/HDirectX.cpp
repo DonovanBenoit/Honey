@@ -125,9 +125,9 @@ bool HDirectX::CreateCommandList(
 	return true;
 }
 
-bool HDirectX::CreateOrUpdateCBV(
+bool HDirectX::CreateOrUpdateSRV(
 	HDescriptor& Descriptor,
-	HResource& Resource,
+	ID3D12Resource* Resource,
 	HDescriptorHeap& DescriptorHeap,
 	ID3D12Device* Device)
 {
@@ -136,16 +136,27 @@ bool HDirectX::CreateOrUpdateCBV(
 		Descriptor = DescriptorHeap.AllocateDescriptor();
 	}
 
-	D3D12_RESOURCE_DESC ResourceDesc = Resource.Resource->GetDesc();
-	if (ResourceDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER)
+	// UAV
+	D3D12_RESOURCE_DESC ResourceDesc = Resource->GetDesc();
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC SRVDescriptor{};
+	switch (ResourceDesc.Dimension)
 	{
-		return false;
+		case D3D12_RESOURCE_DIMENSION_TEXTURE2D:
+		{
+			SRVDescriptor.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+			SRVDescriptor.Format = ResourceDesc.Format;
+			SRVDescriptor.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+			SRVDescriptor.Texture2D.MipLevels = 1;
+			break;
+		}
+		default:
+			assert(false);
+			return false;
 	}
 
-	D3D12_CONSTANT_BUFFER_VIEW_DESC CBVDesc{};
-	CBVDesc.BufferLocation = Resource.Resource->GetGPUVirtualAddress();
-	CBVDesc.SizeInBytes = ResourceDesc.Width;
-	Device->CreateConstantBufferView(&CBVDesc, Descriptor.CPUDescriptorHandle);
+	Device->CreateShaderResourceView(Resource, &SRVDescriptor, Descriptor.CPUDescriptorHandle);
+	return true;
 }
 
 bool HDirectX::CreateOrUpdateUAV(
@@ -198,6 +209,29 @@ bool HDirectX::CreateOrUpdateUAV(
 		assert(false);
 		return false;
 	}
+}
+
+bool HDirectX::CreateOrUpdateCBV(
+	HDescriptor& Descriptor,
+	HResource& Resource,
+	HDescriptorHeap& DescriptorHeap,
+	ID3D12Device* Device)
+{
+	if (Descriptor.CPUDescriptorHandle.ptr == 0)
+	{
+		Descriptor = DescriptorHeap.AllocateDescriptor();
+	}
+
+	D3D12_RESOURCE_DESC ResourceDesc = Resource.Resource->GetDesc();
+	if (ResourceDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER)
+	{
+		return false;
+	}
+
+	D3D12_CONSTANT_BUFFER_VIEW_DESC CBVDesc{};
+	CBVDesc.BufferLocation = Resource.Resource->GetGPUVirtualAddress();
+	CBVDesc.SizeInBytes = ResourceDesc.Width;
+	Device->CreateConstantBufferView(&CBVDesc, Descriptor.CPUDescriptorHandle);
 }
 
 bool HDirectX::CreateOrUpdateRTV(
@@ -385,7 +419,7 @@ bool HDirectX::CreateOrUpdateUnorderedTextureResource(
 		&DefaultHeapProperties,
 		D3D12_HEAP_FLAG_NONE,
 		&TextureDesc,
-		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		ClearValue,
 		IID_PPV_ARGS(&Resource.Resource));
 
@@ -418,7 +452,7 @@ bool HDirectX::CreateOrUpdateUnorderedBufferResource(
 		&DefaultHeapProperties,
 		D3D12_HEAP_FLAG_NONE,
 		&ResourceDesc,
-		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		nullptr,
 		IID_PPV_ARGS(Resource));
 	return SUCCEEDED(Result);
@@ -436,7 +470,7 @@ bool HDirectX::CreateOrUpdateUploadBufferResource(HResource& Resource, ID3D12Dev
 	}
 
 	D3D12_HEAP_PROPERTIES UploadHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-	D3D12_RESOURCE_DESC BufferDesc = CD3DX12_RESOURCE_DESC::Buffer(Size);
+	D3D12_RESOURCE_DESC BufferDesc = CD3DX12_RESOURCE_DESC::Buffer(AlignedSize);
 
 	return CheckResult(Device->CreateCommittedResource(
 		&UploadHeapProperties,
