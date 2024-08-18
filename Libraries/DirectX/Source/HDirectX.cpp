@@ -423,25 +423,27 @@ bool HDirectX::CreateOrUpdateUnorderedTextureResource(
 		ClearValue,
 		IID_PPV_ARGS(&Resource.Resource));
 
+	Resource.ResourceState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+
 	return SUCCEEDED(Result);
 }
 
 bool HDirectX::CreateOrUpdateUnorderedBufferResource(
-	ID3D12Resource** Resource,
+	HResource& Resource,
 	ID3D12Device* Device,
 	size_t ElementSize,
 	size_t ElementCount)
 {
-	if (*Resource != nullptr)
+	if (Resource.Resource != nullptr)
 	{
-		D3D12_RESOURCE_DESC BufferDesc = (*Resource)->GetDesc();
+		D3D12_RESOURCE_DESC BufferDesc = Resource.Resource->GetDesc();
 		if (BufferDesc.Width == CalculateAlignedSize(ElementSize, 4) * ElementCount)
 		{
 			return true;
 		}
 
-		ULONG Count = (*Resource)->Release();
-		(*Resource) = nullptr;
+		ULONG Count = Resource.Resource->Release();
+		Resource.Resource = nullptr;
 	}
 
 	CD3DX12_HEAP_PROPERTIES DefaultHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
@@ -454,7 +456,8 @@ bool HDirectX::CreateOrUpdateUnorderedBufferResource(
 		&ResourceDesc,
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		nullptr,
-		IID_PPV_ARGS(Resource));
+		IID_PPV_ARGS(&Resource.Resource));
+	Resource.ResourceState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 	return SUCCEEDED(Result);
 }
 
@@ -481,67 +484,140 @@ bool HDirectX::CreateOrUpdateUploadBufferResource(HResource& Resource, ID3D12Dev
 		IID_PPV_ARGS(&Resource.Resource)));
 }
 
-void HDirectX::CopyDataToResource(
-	ID3D12Resource* Resource,
-	ID3D12Resource* UploadResource,
+bool HDirectX::CopyDataToResource(
+	HResource& Resource,
 	ID3D12Device* Device,
 	ID3D12GraphicsCommandList* CommandList,
 	void* Data,
 	size_t Size)
 {
-	assert(Size > 0);
-
-	bool CreateUploadBuffer = UploadResource == nullptr;
-	if (UploadResource != nullptr)
+	if (Size == 0)
 	{
-		D3D12_RESOURCE_DESC UploadDesc = UploadResource->GetDesc();
+		assert(false);
+		return false;
+	}
+
+	if (Resource.Resource == nullptr)
+	{
+		assert(false);
+		return false;
+	}
+
+	bool CreateUploadBuffer = Resource.UploadResource == nullptr;
+	if (Resource.UploadResource != nullptr)
+	{
+		D3D12_RESOURCE_DESC UploadDesc = Resource.UploadResource->GetDesc();
 		if (UploadDesc.Width != Size)
 		{
 			CreateUploadBuffer = true;
-			UploadResource->Release();
-			UploadResource = nullptr;
+
+			if (Resource.MappedUploadResource != nullptr)
+			{
+				Resource.MappedUploadResource = nullptr;
+				Resource.UploadResource->Unmap(0, nullptr);
+			}
+
+			Resource.UploadResource->Release();
+			Resource.UploadResource = nullptr;
 		}
+	}
+
+	D3D12_RESOURCE_DESC ResourceDesc = Resource.Resource->GetDesc();
+
+	size_t DataPitch = ResourceDesc.Width;
+	size_t ResourcePitch = 0;
+	switch (ResourceDesc.Dimension)
+	{
+		case D3D12_RESOURCE_DIMENSION_BUFFER:
+			ResourcePitch = ResourceDesc.Width;
+			break;
+		case D3D12_RESOURCE_DIMENSION_TEXTURE2D:
+			ResourcePitch =
+				CalculateAlignedSize(ResourceDesc.Width * 4, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+			break;
+		default:
+			assert(false);
+			return false;
 	}
 
 	if (CreateUploadBuffer)
 	{
 		D3D12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-		D3D12_RESOURCE_DESC ResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(Size);
+		const size_t UploadBufferSize = ResourcePitch * ResourceDesc.Height;
+		D3D12_RESOURCE_DESC UploadResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(UploadBufferSize);
 		HRESULT Result = Device->CreateCommittedResource(
 			&HeapProps,
 			D3D12_HEAP_FLAG_NONE,
-			&ResourceDesc,
+			&UploadResourceDesc,
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
-			IID_PPV_ARGS(&UploadResource));
+			IID_PPV_ARGS(&Resource.UploadResource));
 		if (FAILED(Result))
 		{
-			return;
+			return false;
 		}
 	}
 
-	// Copy the data to the upload heap
-	void* MappedData;
-	UploadResource->Map(0, nullptr, &MappedData);
-	memcpy(MappedData, Data, Size);
-	UploadResource->Unmap(0, nullptr);
+	if (Resource.MappedUploadResource == nullptr)
+	{
+		Resource.UploadResource->Map(0, nullptr, &Resource.MappedUploadResource);
+	}
+
+	// Copy the data to the Upload Resource
+	if (DataPitch == ResourcePitch)
+	{
+		memcpy(Resource.MappedUploadResource, Data, Size);
+	}
+	else
+	{
+		for (size_t Row = 0; Row < ResourceDesc.Height; Row++)
+		{
+			memcpy(
+				reinterpret_cast<uint8_t*>(Resource.MappedUploadResource) + Row * ResourcePitch,
+				reinterpret_cast<uint8_t*>(Data) + Row * DataPitch,
+				DataPitch);
+		}
+	}
 
 	// Transition the resource to the appropriate state for Copy
-	D3D12_RESOURCE_BARRIER StartBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
-		Resource,
-		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-		D3D12_RESOURCE_STATE_COPY_DEST);
+	D3D12_RESOURCE_BARRIER StartBarrier =
+		CD3DX12_RESOURCE_BARRIER::Transition(Resource.Resource, Resource.ResourceState, D3D12_RESOURCE_STATE_COPY_DEST);
 	CommandList->ResourceBarrier(1, &StartBarrier);
 
 	// Copy the data to the resource
-	CommandList->CopyBufferRegion(Resource, 0, UploadResource, 0, Size);
+	switch (ResourceDesc.Dimension)
+	{
+		case D3D12_RESOURCE_DIMENSION_BUFFER:
+			CommandList->CopyBufferRegion(Resource.Resource, 0, Resource.UploadResource, 0, Size);
+			break;
+		case D3D12_RESOURCE_DIMENSION_TEXTURE2D:
+		{
+			D3D12_PLACED_SUBRESOURCE_FOOTPRINT SourceFootprint = {};
+			SourceFootprint.Footprint.Width = static_cast<UINT>(ResourceDesc.Width);
+			SourceFootprint.Footprint.Height = ResourceDesc.Height;
+			SourceFootprint.Footprint.Depth = 1;
+			SourceFootprint.Footprint.RowPitch = static_cast<UINT>(ResourcePitch);
+			SourceFootprint.Footprint.Format = ResourceDesc.Format;
+
+			CD3DX12_TEXTURE_COPY_LOCATION CopyDest(Resource.Resource, 0);
+			CD3DX12_TEXTURE_COPY_LOCATION CopySrc(Resource.UploadResource, SourceFootprint);
+
+			CommandList->CopyTextureRegion(&CopyDest, 0, 0, 0, &CopySrc, nullptr);
+		}
+		break;
+		default:
+			assert(false);
+			return false;
+	}
 
 	// Transition the resource to the appropriate state for use
 	D3D12_RESOURCE_BARRIER EndBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
-		Resource,
+		Resource.Resource,
 		D3D12_RESOURCE_STATE_COPY_DEST,
-		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+		Resource.ResourceState);
 	CommandList->ResourceBarrier(1, &EndBarrier);
+
+	return true;
 }
 
 bool HDirectX::CreateFence(HFence& Fence, ID3D12Device* Device)

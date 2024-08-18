@@ -77,6 +77,9 @@ struct HResource
 {
 	uint64_t Version = 0;
 	ID3D12Resource* Resource = nullptr;
+	D3D12_RESOURCE_STATES ResourceState = D3D12_RESOURCE_STATE_GENERIC_READ;
+	ID3D12Resource* UploadResource = nullptr;
+	void* MappedUploadResource = nullptr;
 };
 
 struct HDescriptor
@@ -185,7 +188,7 @@ namespace HDirectX
 		DXGI_FORMAT Format = DXGI_FORMAT_R8G8B8A8_UNORM,
 		bool IsRenderTarget = false);
 	bool CreateOrUpdateUnorderedBufferResource(
-		ID3D12Resource** Resource,
+		HResource& Resource,
 		ID3D12Device* Device,
 		size_t ElementSize,
 		size_t ElementCount);
@@ -194,9 +197,8 @@ namespace HDirectX
 		ID3D12Device* Device,
 		size_t Size);
 
-	void CopyDataToResource(
-		ID3D12Resource* Resource,
-		ID3D12Resource* UploadResource,
+	bool CopyDataToResource(
+		HResource& Resource,
 		ID3D12Device* Device,
 		ID3D12GraphicsCommandList* CommandList,
 		void* Data,

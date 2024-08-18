@@ -88,20 +88,16 @@ struct HComputePass
 	ID3D12Resource* StepDistanceResource = nullptr;
 	int64_t StepDistanceHeapIndex = -1;*/
 
-	ID3D12Resource* SpheresResource = nullptr;
-	ID3D12Resource* SpheresUploadResource = nullptr;
+	HResource SpheresResource{};
 	HDescriptor SpheresDescriptor{};
 
-	ID3D12Resource* MaterialsResource = nullptr;
-	ID3D12Resource* MaterialsUploadResource = nullptr;
+	HResource MaterialsResource{};
 	HDescriptor MaterialsDescriptor{};
 
-	ID3D12Resource* SceneResource = nullptr;
-	ID3D12Resource* SceneUploadResource = nullptr;
+	HResource SceneResource{};
 	HDescriptor SceneDescriptor{};
 
-	ID3D12Resource* SDFsResource = nullptr;
-	ID3D12Resource* SDFsUploadResource = nullptr;
+	HResource SDFsResource{};
 	HDescriptor SDFsDescriptor{};
 
 	std::future<bool> RenderFuture{};

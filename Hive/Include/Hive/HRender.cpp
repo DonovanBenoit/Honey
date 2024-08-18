@@ -298,7 +298,7 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	{
 		uint64_t SphereCount = 1024;
 		if (!HDirectX::CreateOrUpdateUnorderedBufferResource(
-				&ComputePass.SpheresResource,
+				ComputePass.SpheresResource,
 				GUIWindow.DirectXContext->Device,
 				sizeof(HRenderedSphere),
 				SphereCount))
@@ -308,7 +308,7 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 		ComputePass.RootSignature.AddRootParameter("Spheres", HRootParameterType::UAV);
 		if (!HDirectX::CreateOrUpdateUAV(
 				ComputePass.SpheresDescriptor,
-				ComputePass.SpheresResource,
+				ComputePass.SpheresResource.Resource,
 				SphereCount,
 				ComputePass.CBVSRVUAVDescriptorHeap,
 				GUIWindow.DirectXContext->Device))
@@ -321,7 +321,7 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	{
 		uint64_t MaterialCount = 1024;
 		if (!HDirectX::CreateOrUpdateUnorderedBufferResource(
-				&ComputePass.MaterialsResource,
+				ComputePass.MaterialsResource,
 				GUIWindow.DirectXContext->Device,
 				sizeof(HMaterial),
 				MaterialCount))
@@ -331,7 +331,7 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 		ComputePass.RootSignature.AddRootParameter("Materials", HRootParameterType::UAV);
 		if (!HDirectX::CreateOrUpdateUAV(
 				ComputePass.MaterialsDescriptor,
-				ComputePass.MaterialsResource,
+				ComputePass.MaterialsResource.Resource,
 				MaterialCount,
 				ComputePass.CBVSRVUAVDescriptorHeap,
 				GUIWindow.DirectXContext->Device))
@@ -343,7 +343,7 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	// Scene
 	{
 		if (!HDirectX::CreateOrUpdateUnorderedBufferResource(
-				&ComputePass.SceneResource,
+				ComputePass.SceneResource,
 				GUIWindow.DirectXContext->Device,
 				sizeof(HRenderedScene),
 				1))
@@ -353,7 +353,7 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 		ComputePass.RootSignature.AddRootParameter("Scene", HRootParameterType::UAV);
 		if (!HDirectX::CreateOrUpdateUAV(
 				ComputePass.SceneDescriptor,
-				ComputePass.SceneResource,
+				ComputePass.SceneResource.Resource,
 				1,
 				ComputePass.CBVSRVUAVDescriptorHeap,
 				GUIWindow.DirectXContext->Device))
@@ -366,7 +366,7 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	{
 		uint64_t SDFCount = 1024;
 		if (!HDirectX::CreateOrUpdateUnorderedBufferResource(
-				&ComputePass.SDFsResource,
+				ComputePass.SDFsResource,
 				GUIWindow.DirectXContext->Device,
 				sizeof(HSDF),
 				SDFCount))
@@ -376,7 +376,7 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 		ComputePass.RootSignature.AddRootParameter("SDFs", HRootParameterType::UAV);
 		if (!HDirectX::CreateOrUpdateUAV(
 				ComputePass.SDFsDescriptor,
-				ComputePass.SDFsResource,
+				ComputePass.SDFsResource.Resource,
 				SDFCount,
 				ComputePass.CBVSRVUAVDescriptorHeap,
 				GUIWindow.DirectXContext->Device))
@@ -881,7 +881,6 @@ bool HHoney::RenderComputePass(
 		uint64_t RenderSphersDataSize = Scene.RenderedSpheres.size() * sizeof(HRenderedSphere);
 		HDirectX::CopyDataToResource(
 			ComputePass.SpheresResource,
-			ComputePass.SpheresUploadResource,
 			GUIWindow.DirectXContext->Device,
 			ComputePass.UpdateCommandList,
 			Scene.RenderedSpheres.data(),
@@ -890,7 +889,6 @@ bool HHoney::RenderComputePass(
 		uint64_t RenderedMaterialsDataSize = Scene.RenderedMaterials.size() * sizeof(HMaterial);
 		HDirectX::CopyDataToResource(
 			ComputePass.MaterialsResource,
-			ComputePass.MaterialsUploadResource,
 			GUIWindow.DirectXContext->Device,
 			ComputePass.UpdateCommandList,
 			Scene.RenderedMaterials.data(),
@@ -904,7 +902,6 @@ bool HHoney::RenderComputePass(
 
 		HDirectX::CopyDataToResource(
 			ComputePass.SceneResource,
-			ComputePass.SceneUploadResource,
 			GUIWindow.DirectXContext->Device,
 			ComputePass.UpdateCommandList,
 			&RenderedScene,
@@ -914,7 +911,6 @@ bool HHoney::RenderComputePass(
 		assert(SDFsDataSize > 0);
 		HDirectX::CopyDataToResource(
 			ComputePass.SDFsResource,
-			ComputePass.SDFsUploadResource,
 			GUIWindow.DirectXContext->Device,
 			ComputePass.UpdateCommandList,
 			Scene.RenderedSDFs.data(),
