@@ -45,7 +45,10 @@ struct HRootSignature
 
 	std::vector<HRootParameter> RootParameters{};
 
-	void AddRootParameter(std::string_view Name, HRootParameterType RootParameterType, HShaderVisibility ShaderVisibility = HShaderVisibility::All);
+	void AddRootParameter(
+		std::string_view Name,
+		HRootParameterType RootParameterType,
+		HShaderVisibility ShaderVisibility = HShaderVisibility::All);
 
 	bool Build(
 		HDirectXContext& DirectXContext,
@@ -161,12 +164,7 @@ struct HRenderWindow
 
 namespace HHoney
 {
-	void DrawRender(HGUIWindow& GUIWindow, HScene& Scene, entt::entity CameraEntity, HRenderWindow& RenderWindow);
-
-	bool CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass);
-
 	bool CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& RenderPass, const glm::vec2& Resolution);
-
 	bool RenderRenderPass(
 		HDirectXContext& DirectXContext,
 		HRenderPass& RenderPass,
@@ -175,6 +173,11 @@ namespace HHoney
 		const std::vector<HVertex>& Verticies,
 		const HTexture& Texture,
 		const glm::vec2& Resolution);
+} // namespace HHoney
+
+namespace HHoney
+{
+	bool CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass);
 
 	bool RenderComputePass(
 		HGUIWindow& GUIWindow,
@@ -183,5 +186,4 @@ namespace HHoney
 		entt::entity CameraEntity,
 		const glm::vec2& Resolution);
 
-	void ControlsWindow(HGUIWindow& GUIWindow, HScene& Scene, entt::entity CameraEntity, HRenderWindow& RenderWindow);
 } // namespace HHoney
