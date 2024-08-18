@@ -639,15 +639,6 @@ bool HHoney::RenderRenderPass(
 	const HTexture& Texture,
 	const glm::vec2& Resolution)
 {
-	// Check to see if we have finished rendering to the back buffer
-	if (RenderPass.FenceValue > 0)
-	{
-		if (!HDirectX::CheckFenceComplete(RenderPass.Fence, RenderPass.FenceValue))
-		{
-			return true;
-		}
-	}
-
 	// Swap Buffers
 	RenderPass.FrontBufferIndex = (RenderPass.FrontBufferIndex + 1) % HRenderPass::OutputBufferCount;
 	uint64_t BackBufferIndex = (RenderPass.FrontBufferIndex + 1) % HRenderPass::OutputBufferCount;
@@ -770,6 +761,18 @@ bool HHoney::RenderRenderPass(
 	// This might not work for more than 2 buffers
 	static_assert(HRenderPass::OutputBufferCount == 2);
 	HDirectX::SignalFence(DirectXContext.CommandQueue, RenderPass.Fence, RenderPass.FenceValue);
+
+	// Render synchronously for now
+	// Move this to the top once we figure out resource access
+	// Check to see if we have finished rendering to the back buffer
+	if (RenderPass.FenceValue > 0)
+	{
+		HDirectX::WaitForFence(RenderPass.Fence, RenderPass.FenceValue);
+		//if (!HDirectX::CheckFenceComplete(RenderPass.Fence, RenderPass.FenceValue))
+		/*{
+			return true;
+		}*/
+	}
 
 	return true;
 }
