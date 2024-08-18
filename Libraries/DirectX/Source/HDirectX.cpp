@@ -524,14 +524,16 @@ bool HDirectX::CopyDataToResource(
 
 	D3D12_RESOURCE_DESC ResourceDesc = Resource.Resource->GetDesc();
 
-	size_t DataPitch = ResourceDesc.Width;
+	size_t DataPitch = 0;
 	size_t ResourcePitch = 0;
 	switch (ResourceDesc.Dimension)
 	{
 		case D3D12_RESOURCE_DIMENSION_BUFFER:
+			DataPitch = Size;
 			ResourcePitch = ResourceDesc.Width;
 			break;
 		case D3D12_RESOURCE_DIMENSION_TEXTURE2D:
+			DataPitch = ResourceDesc.Width * 4;
 			ResourcePitch =
 				CalculateAlignedSize(ResourceDesc.Width * 4, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
 			break;
