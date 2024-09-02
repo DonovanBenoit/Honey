@@ -20,12 +20,15 @@ struct HSphere
 	float Radius = 0.5f;
 };
 
+struct HVertex
+{
+	glm::vec3 Position;
+	glm::vec2 UV;
+};
+
 struct HMesh
 {
-	std::vector<glm::vec3> Positions;
-
-	// 3 * TriangleCount in size
-	std::vector<uint32_t> Indicies;
+	std::vector<HVertex> Verticies;
 };
 
 enum class HTextureFlags : uint32_t

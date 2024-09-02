@@ -78,6 +78,8 @@ struct HResource
 	uint64_t Version = 0;
 	ID3D12Resource* Resource = nullptr;
 	D3D12_RESOURCE_STATES ResourceState = D3D12_RESOURCE_STATE_GENERIC_READ;
+
+	// Optional resource used for uploading
 	ID3D12Resource* UploadResource = nullptr;
 	void* MappedUploadResource = nullptr;
 };

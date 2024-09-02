@@ -325,7 +325,7 @@ bool HHoney::RenderRenderPass(
 	HRenderPass& RenderPass,
 	const glm::vec3& Translation,
 	const glm::vec3& Scale,
-	const std::vector<HVertex>& Verticies,
+	const std::vector<HMesh>& Meshes,
 	const HTexture& Texture,
 	const glm::vec2& Resolution)
 {
@@ -336,45 +336,60 @@ bool HHoney::RenderRenderPass(
 	// Update Scene
 	RenderPass.MappedSceneBuffers[BackBufferIndex]->Translation = glm::vec4(Translation, 0.0f);
 	RenderPass.MappedSceneBuffers[BackBufferIndex]->Scale = glm::vec4(Scale, 0.0f);
-	const uint64_t VertexBufferSize = sizeof(HVertex) * Verticies.size();
-	if (VertexBufferSize > 0)
+
+	// Update Mesh Buffers
 	{
-		// Resize the vertex buffer
-		if (RenderPass.VertexBufferView.SizeInBytes != VertexBufferSize)
+		uint64_t VertexBufferSize = 0;
+		for (const HMesh& Mesh : Meshes)
 		{
-			RenderPass.VertexBufferResource->Unmap(0, nullptr);
-			// Note: using upload heaps to transfer static data like vert buffers is not
-			// recommended. Every time the GPU needs it, the upload heap will be marshalled
-			// over. Please read up on Default Heap usage. An upload heap is used here for
-			// code simplicity and because there are very few verts to actually transfer.
-			CD3DX12_RESOURCE_DESC VertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(VertexBufferSize);
-			CD3DX12_HEAP_PROPERTIES UploadHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-			if (!CheckResult(DirectXContext.Device->CreateCommittedResource(
-					&UploadHeapProperties,
-					D3D12_HEAP_FLAG_NONE,
-					&VertexBufferDesc,
-					D3D12_RESOURCE_STATE_GENERIC_READ,
-					nullptr,
-					IID_PPV_ARGS(&RenderPass.VertexBufferResource))))
-			{
-				return false;
-			}
-
-			// Map the GPU buffer so we can write to it
-			CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
-			if (!CheckResult(RenderPass.VertexBufferResource
-								 ->Map(0, &ReadRange, reinterpret_cast<void**>(&RenderPass.VertexBufferData))))
-			{
-				return false;
-			}
-
-			// Initialize the vertex buffer view.
-			RenderPass.VertexBufferView.BufferLocation = RenderPass.VertexBufferResource->GetGPUVirtualAddress();
-			RenderPass.VertexBufferView.StrideInBytes = sizeof(HVertex);
-			RenderPass.VertexBufferView.SizeInBytes = VertexBufferSize;
+			VertexBufferSize += sizeof(HVertex) * Mesh.Verticies.size();
 		}
+		if (VertexBufferSize > 0)
+		{
+			// Resize the vertex buffer
+			if (RenderPass.VertexBufferView.SizeInBytes != VertexBufferSize)
+			{
+				RenderPass.VertexBufferResource->Unmap(0, nullptr);
+				// Note: using upload heaps to transfer static data like vert buffers is not
+				// recommended. Every time the GPU needs it, the upload heap will be marshalled
+				// over. Please read up on Default Heap usage. An upload heap is used here for
+				// code simplicity and because there are very few verts to actually transfer.
+				CD3DX12_RESOURCE_DESC VertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(VertexBufferSize);
+				CD3DX12_HEAP_PROPERTIES UploadHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+				if (!CheckResult(DirectXContext.Device->CreateCommittedResource(
+						&UploadHeapProperties,
+						D3D12_HEAP_FLAG_NONE,
+						&VertexBufferDesc,
+						D3D12_RESOURCE_STATE_GENERIC_READ,
+						nullptr,
+						IID_PPV_ARGS(&RenderPass.VertexBufferResource))))
+				{
+					return false;
+				}
 
-		memcpy(RenderPass.VertexBufferData, Verticies.data(), VertexBufferSize);
+				// Map the GPU buffer so we can write to it
+				CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
+				if (!CheckResult(RenderPass.VertexBufferResource
+									 ->Map(0, &ReadRange, reinterpret_cast<void**>(&RenderPass.VertexBufferData))))
+				{
+					return false;
+				}
+
+				// Initialize the vertex buffer view.
+				RenderPass.VertexBufferView.BufferLocation = RenderPass.VertexBufferResource->GetGPUVirtualAddress();
+				RenderPass.VertexBufferView.StrideInBytes = sizeof(HVertex);
+				RenderPass.VertexBufferView.SizeInBytes = VertexBufferSize;
+			}
+		}
+		uint64_t VertexBufferOffset = 0;
+		for (const HMesh& Mesh : Meshes)
+		{
+			memcpy(
+				RenderPass.VertexBufferData + VertexBufferOffset,
+				Mesh.Verticies.data(),
+				sizeof(HVertex) * Mesh.Verticies.size());
+			VertexBufferOffset += Mesh.Verticies.size();
+		}
 	}
 
 	// Command list allocators can only be reset when the associated
@@ -434,7 +449,13 @@ bool HHoney::RenderRenderPass(
 		nullptr);
 	RenderPass.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	RenderPass.CommandList->IASetVertexBuffers(0, 1, &RenderPass.VertexBufferView);
-	RenderPass.CommandList->DrawInstanced(glm::max(3ull, Verticies.size()), 1, 0, 0);
+
+	uint64_t StartVertexLocation = 0;
+	for (const HMesh& Mesh : Meshes)
+	{
+		RenderPass.CommandList->DrawInstanced(glm::max(3ull, Mesh.Verticies.size()), 1, StartVertexLocation, 0);
+		StartVertexLocation += Mesh.Verticies.size();
+	}
 
 	D3D12_RESOURCE_BARRIER EndBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(
 		RenderPass.OutputResources[BackBufferIndex].Resource,
@@ -458,7 +479,7 @@ bool HHoney::RenderRenderPass(
 	if (RenderPass.FenceValue > 0)
 	{
 		HDirectX::WaitForFence(RenderPass.Fence, RenderPass.FenceValue);
-		//if (!HDirectX::CheckFenceComplete(RenderPass.Fence, RenderPass.FenceValue))
+		// if (!HDirectX::CheckFenceComplete(RenderPass.Fence, RenderPass.FenceValue))
 		/*{
 			return true;
 		}*/
@@ -467,52 +488,47 @@ bool HHoney::RenderRenderPass(
 	return true;
 }
 
-
-
-
-
-
 bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 {
 	if (!HDirectX::CreateCommandQueue(
-		&ComputePass.CommandQueue,
-		GUIWindow.DirectXContext->Device,
-		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE,
-		"Compute"))
+			&ComputePass.CommandQueue,
+			GUIWindow.DirectXContext->Device,
+			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE,
+			"Compute"))
 	{
 		return false;
 	}
 
 	if (!HDirectX::CreateCommandAllocator(
-		&ComputePass.CommandAllocator,
-		GUIWindow.DirectXContext->Device,
-		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
+			&ComputePass.CommandAllocator,
+			GUIWindow.DirectXContext->Device,
+			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
 	{
 		return false;
 	}
 
 	if (!HDirectX::CreateCommandList(
-		&ComputePass.CommandList,
-		ComputePass.CommandAllocator,
-		GUIWindow.DirectXContext->Device,
-		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
+			&ComputePass.CommandList,
+			ComputePass.CommandAllocator,
+			GUIWindow.DirectXContext->Device,
+			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
 	{
 		return false;
 	}
 
 	if (!HDirectX::CreateCommandAllocator(
-		&ComputePass.UpdateCommandAllocator,
-		GUIWindow.DirectXContext->Device,
-		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
+			&ComputePass.UpdateCommandAllocator,
+			GUIWindow.DirectXContext->Device,
+			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
 	{
 		return false;
 	}
 
 	if (!HDirectX::CreateCommandList(
-		&ComputePass.UpdateCommandList,
-		ComputePass.UpdateCommandAllocator,
-		GUIWindow.DirectXContext->Device,
-		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
+			&ComputePass.UpdateCommandList,
+			ComputePass.UpdateCommandAllocator,
+			GUIWindow.DirectXContext->Device,
+			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_COMPUTE))
 	{
 		return false;
 	}
@@ -532,19 +548,19 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	// Output
 	{
 		if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
-			ComputePass.OutputResource,
-			GUIWindow.DirectXContext->Device,
-			ComputePass.Resolution))
+				ComputePass.OutputResource,
+				GUIWindow.DirectXContext->Device,
+				ComputePass.Resolution))
 		{
 			return false;
 		}
 		ComputePass.RootSignature.AddRootParameter("Output", HRootParameterType::UAV);
 		if (!HDirectX::CreateOrUpdateUAV(
-			ComputePass.OutputDescriptor,
-			ComputePass.OutputResource.Resource,
-			1,
-			ComputePass.CBVSRVUAVDescriptorHeap,
-			GUIWindow.DirectXContext->Device))
+				ComputePass.OutputDescriptor,
+				ComputePass.OutputResource.Resource,
+				1,
+				ComputePass.CBVSRVUAVDescriptorHeap,
+				GUIWindow.DirectXContext->Device))
 		{
 			return false;
 		}
@@ -554,20 +570,20 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	{
 		uint64_t SphereCount = 1024;
 		if (!HDirectX::CreateOrUpdateUnorderedBufferResource(
-			ComputePass.SpheresResource,
-			GUIWindow.DirectXContext->Device,
-			sizeof(HRenderedSphere),
-			SphereCount))
+				ComputePass.SpheresResource,
+				GUIWindow.DirectXContext->Device,
+				sizeof(HRenderedSphere),
+				SphereCount))
 		{
 			return false;
 		}
 		ComputePass.RootSignature.AddRootParameter("Spheres", HRootParameterType::UAV);
 		if (!HDirectX::CreateOrUpdateUAV(
-			ComputePass.SpheresDescriptor,
-			ComputePass.SpheresResource.Resource,
-			SphereCount,
-			ComputePass.CBVSRVUAVDescriptorHeap,
-			GUIWindow.DirectXContext->Device))
+				ComputePass.SpheresDescriptor,
+				ComputePass.SpheresResource.Resource,
+				SphereCount,
+				ComputePass.CBVSRVUAVDescriptorHeap,
+				GUIWindow.DirectXContext->Device))
 		{
 			return false;
 		}
@@ -577,20 +593,20 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	{
 		uint64_t MaterialCount = 1024;
 		if (!HDirectX::CreateOrUpdateUnorderedBufferResource(
-			ComputePass.MaterialsResource,
-			GUIWindow.DirectXContext->Device,
-			sizeof(HMaterial),
-			MaterialCount))
+				ComputePass.MaterialsResource,
+				GUIWindow.DirectXContext->Device,
+				sizeof(HMaterial),
+				MaterialCount))
 		{
 			return false;
 		}
 		ComputePass.RootSignature.AddRootParameter("Materials", HRootParameterType::UAV);
 		if (!HDirectX::CreateOrUpdateUAV(
-			ComputePass.MaterialsDescriptor,
-			ComputePass.MaterialsResource.Resource,
-			MaterialCount,
-			ComputePass.CBVSRVUAVDescriptorHeap,
-			GUIWindow.DirectXContext->Device))
+				ComputePass.MaterialsDescriptor,
+				ComputePass.MaterialsResource.Resource,
+				MaterialCount,
+				ComputePass.CBVSRVUAVDescriptorHeap,
+				GUIWindow.DirectXContext->Device))
 		{
 			return false;
 		}
@@ -599,20 +615,20 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	// Scene
 	{
 		if (!HDirectX::CreateOrUpdateUnorderedBufferResource(
-			ComputePass.SceneResource,
-			GUIWindow.DirectXContext->Device,
-			sizeof(HRenderedScene),
-			1))
+				ComputePass.SceneResource,
+				GUIWindow.DirectXContext->Device,
+				sizeof(HRenderedScene),
+				1))
 		{
 			return false;
 		}
 		ComputePass.RootSignature.AddRootParameter("Scene", HRootParameterType::UAV);
 		if (!HDirectX::CreateOrUpdateUAV(
-			ComputePass.SceneDescriptor,
-			ComputePass.SceneResource.Resource,
-			1,
-			ComputePass.CBVSRVUAVDescriptorHeap,
-			GUIWindow.DirectXContext->Device))
+				ComputePass.SceneDescriptor,
+				ComputePass.SceneResource.Resource,
+				1,
+				ComputePass.CBVSRVUAVDescriptorHeap,
+				GUIWindow.DirectXContext->Device))
 		{
 			return false;
 		}
@@ -622,20 +638,20 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	{
 		uint64_t SDFCount = 1024;
 		if (!HDirectX::CreateOrUpdateUnorderedBufferResource(
-			ComputePass.SDFsResource,
-			GUIWindow.DirectXContext->Device,
-			sizeof(HSDF),
-			SDFCount))
+				ComputePass.SDFsResource,
+				GUIWindow.DirectXContext->Device,
+				sizeof(HSDF),
+				SDFCount))
 		{
 			return false;
 		}
 		ComputePass.RootSignature.AddRootParameter("SDFs", HRootParameterType::UAV);
 		if (!HDirectX::CreateOrUpdateUAV(
-			ComputePass.SDFsDescriptor,
-			ComputePass.SDFsResource.Resource,
-			SDFCount,
-			ComputePass.CBVSRVUAVDescriptorHeap,
-			GUIWindow.DirectXContext->Device))
+				ComputePass.SDFsDescriptor,
+				ComputePass.SDFsResource.Resource,
+				SDFCount,
+				ComputePass.CBVSRVUAVDescriptorHeap,
+				GUIWindow.DirectXContext->Device))
 		{
 			return false;
 		}
@@ -685,18 +701,17 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	ComputePass.RootSignature.Build(*GUIWindow.DirectXContext);
 
 	if (!HDirectX::CreateComputePipelineState(
-		ComputePass.PipelineState,
-		"Shaders/Hive/HComputeRender.hlsl",
-		"main",
-		ComputePass.RootSignature.RootSiganature.Get(),
-		GUIWindow.DirectXContext->Device))
+			ComputePass.PipelineState,
+			"Shaders/Hive/HComputeRender.hlsl",
+			"main",
+			ComputePass.RootSignature.RootSiganature.Get(),
+			GUIWindow.DirectXContext->Device))
 	{
 		return false;
 	}
 
 	return true;
 };
-
 
 bool HHoney::RenderComputePass(
 	HGUIWindow& GUIWindow,

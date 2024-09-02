@@ -11,8 +11,10 @@
 
 struct HGUIImage;
 struct HGUIWindow;
+struct HMesh;
 struct HScene;
 struct HTexture;
+struct HVertex;
 
 enum class HRootParameterType : uint32_t
 {
@@ -106,12 +108,6 @@ struct HComputePass
 	std::future<bool> RenderFuture{};
 };
 
-struct HVertex
-{
-	glm::vec3 Position;
-	glm::vec2 UV;
-};
-
 struct HSceneBuffer
 {
 	glm::vec4 Translation;
@@ -170,7 +166,7 @@ namespace HHoney
 		HRenderPass& RenderPass,
 		const glm::vec3& Translation,
 		const glm::vec3& Scale,
-		const std::vector<HVertex>& Verticies,
+		const std::vector<HMesh>& Meshes,
 		const HTexture& Texture,
 		const glm::vec2& Resolution);
 } // namespace HHoney
