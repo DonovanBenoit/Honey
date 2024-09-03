@@ -138,6 +138,7 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 			DirectXContext.Device,
 			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT))
 	{
+		assert(false);
 		return false;
 	}
 
@@ -147,6 +148,7 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 			DirectXContext.Device,
 			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT))
 	{
+		assert(false);
 		return false;
 	}
 
@@ -155,6 +157,7 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 			DirectXContext.Device,
 			D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT))
 	{
+		assert(false);
 		return false;
 	}
 
@@ -169,92 +172,112 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 
 	if (!HDirectX::CreateFence(RenderPass.Fence, DirectXContext.Device))
 	{
+		assert(false);
 		return false;
 	}
 
 	if (!HDirectX::CreateCBVSRVUAVHeap(RenderPass.CBVSRVUAVDescriptorHeap, DirectXContext.Device, 1000000))
 	{
+		assert(false);
 		return false;
 	}
 
 	if (!HDirectX::CreateRTVHeap(RenderPass.RTVDescriptorHeap, DirectXContext.Device, 8))
 	{
+		assert(false);
 		return false;
 	}
 
 	for (uint64_t OutputResource = 0; OutputResource < HRenderPass::OutputBufferCount; OutputResource++)
 	{
 		// Output Resources
-		if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
-				RenderPass.OutputResources[OutputResource],
-				DirectXContext.Device,
-				Resolution,
-				DXGI_FORMAT_R8G8B8A8_UNORM,
-				true))
 		{
-			return false;
-		}
-		if (!HDirectX::CreateOrUpdateRTV(
-				RenderPass.OutputRTVDescriptors[OutputResource],
-				RenderPass.OutputResources[OutputResource].Resource,
-				RenderPass.RTVDescriptorHeap,
-				DirectXContext.Device))
-		{
-			return false;
+			if (!HDirectX::CreateOrUpdateUnorderedTextureResource(
+					RenderPass.OutputResources[OutputResource],
+					DirectXContext.Device,
+					Resolution,
+					DXGI_FORMAT_R8G8B8A8_UNORM,
+					true))
+			{
+				assert(false);
+				return false;
+			}
+			if (!HDirectX::CreateOrUpdateRTV(
+					RenderPass.OutputRTVDescriptors[OutputResource],
+					RenderPass.OutputResources[OutputResource].Resource,
+					RenderPass.RTVDescriptorHeap,
+					DirectXContext.Device))
+			{
+				assert(false);
+				return false;
+			}
 		}
 
 		// Scene Resources
-		if (!HDirectX::CreateOrUpdateUploadBufferResource(
-				RenderPass.SceneBufferResources[OutputResource],
-				DirectXContext.Device,
-				sizeof(HSceneBuffer)))
 		{
-			return false;
-		}
-		if (!HDirectX::CreateOrUpdateCBV(
-				RenderPass.SceneBufferDescriptors[OutputResource],
-				RenderPass.SceneBufferResources[OutputResource],
-				0,
-				HDirectX::CalculateAlignedSize(sizeof(HSceneBuffer), 256),
-				RenderPass.CBVSRVUAVDescriptorHeap,
-				DirectXContext.Device))
-		{
-			return false;
-		}
-		CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
-		if (!CheckResult(RenderPass.SceneBufferResources[OutputResource].Resource->Map(
-				0,
-				&ReadRange,
-				reinterpret_cast<void**>(&RenderPass.MappedSceneBuffers[OutputResource]))))
-		{
-			return false;
+			if (!HDirectX::CreateOrUpdateUploadBufferResource(
+					RenderPass.SceneBufferResources[OutputResource],
+					DirectXContext.Device,
+					sizeof(HSceneBuffer)))
+			{
+				assert(false);
+				return false;
+			}
+			if (!HDirectX::CreateOrUpdateCBV(
+					RenderPass.SceneBufferDescriptors[OutputResource],
+					RenderPass.SceneBufferResources[OutputResource],
+					0,
+					HDirectX::CalculateAlignedSize(sizeof(HSceneBuffer), 256),
+					RenderPass.CBVSRVUAVDescriptorHeap,
+					DirectXContext.Device))
+			{
+				assert(false);
+				return false;
+			}
+			CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
+			if (!CheckResult(RenderPass.SceneBufferResources[OutputResource].Resource->Map(
+					0,
+					&ReadRange,
+					reinterpret_cast<void**>(&RenderPass.MappedSceneBuffers[OutputResource]))))
+			{
+				assert(false);
+				return false;
+			}
 		}
 
 		// Instance Resources
-		if (!HDirectX::CreateOrUpdateUploadBufferResource(
-				RenderPass.InstanceBufferResources[OutputResource],
-				DirectXContext.Device,
-				sizeof(HInstanceBuffer)))
 		{
-			return false;
-		}
-		if (!CheckResult(RenderPass.InstanceBufferResources[OutputResource].Resource->Map(
-				0,
-				&ReadRange,
-				reinterpret_cast<void**>(&RenderPass.MappedInstanceBuffers[OutputResource]))))
-		{
-			return false;
-		}
-		RenderPass.InstanceBufferDescriptors[OutputResource].resize(1);
-		if (!HDirectX::CreateOrUpdateCBV(
-				RenderPass.InstanceBufferDescriptors[OutputResource][0],
-				RenderPass.InstanceBufferResources[OutputResource],
-				0,
-				HDirectX::CalculateAlignedSize(sizeof(HInstanceBuffer), 256),
-				RenderPass.CBVSRVUAVDescriptorHeap,
-				DirectXContext.Device))
-		{
-			return false;
+			RenderPass.InstanceBufferResources[OutputResource].resize(1);
+			if (!HDirectX::CreateOrUpdateUploadBufferResource(
+					RenderPass.InstanceBufferResources[OutputResource][0],
+					DirectXContext.Device,
+					sizeof(HInstanceBuffer)))
+			{
+				assert(false);
+				return false;
+			}
+			RenderPass.MappedInstanceBuffers[OutputResource].resize(1);
+			CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
+			if (!CheckResult(RenderPass.InstanceBufferResources[OutputResource][0].Resource->Map(
+					0,
+					&ReadRange,
+					reinterpret_cast<void**>(&RenderPass.MappedInstanceBuffers[OutputResource][0]))))
+			{
+				assert(false);
+				return false;
+			}
+			RenderPass.InstanceBufferDescriptors[OutputResource].resize(1);
+			if (!HDirectX::CreateOrUpdateCBV(
+					RenderPass.InstanceBufferDescriptors[OutputResource][0],
+					RenderPass.InstanceBufferResources[OutputResource][0],
+					0,
+					HDirectX::CalculateAlignedSize(sizeof(HInstanceBuffer), 256),
+					RenderPass.CBVSRVUAVDescriptorHeap,
+					DirectXContext.Device))
+			{
+				assert(false);
+				return false;
+			}
 		}
 	}
 
@@ -266,12 +289,14 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 	Microsoft::WRL::ComPtr<ID3DBlob> VSBlob;
 	if (!HDirectX::CompileShader("Shaders/Hive/HRenderPass.hlsl", "VSMain", "vs_5_0", VSBlob))
 	{
+		assert(false);
 		return false;
 	}
 
 	Microsoft::WRL::ComPtr<ID3DBlob> PSBlob;
 	if (!HDirectX::CompileShader("Shaders/Hive/HRenderPass.hlsl", "PSMain", "ps_5_0", PSBlob))
 	{
+		assert(false);
 		return false;
 	}
 
@@ -301,6 +326,7 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 		IID_PPV_ARGS(&RenderPass.PipelineState));
 	if (!SUCCEEDED(Result))
 	{
+		assert(false);
 		return false;
 	}
 
@@ -328,6 +354,7 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 			IID_PPV_ARGS(&RenderPass.VertexBufferResource));
 		if (!SUCCEEDED(Result))
 		{
+			assert(false);
 			return false;
 		}
 
@@ -337,6 +364,7 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 			RenderPass.VertexBufferResource->Map(0, &ReadRange, reinterpret_cast<void**>(&RenderPass.VertexBufferData));
 		if (!SUCCEEDED(Result))
 		{
+			assert(false);
 			return false;
 		}
 		memcpy(RenderPass.VertexBufferData, TriangleVertices, sizeof(TriangleVertices));
@@ -414,42 +442,41 @@ bool HHoney::RenderRenderPass(
 
 		// Resize the instance Buffers
 		{
-			uint64_t InstanceBufferAlignedSize =
-				HDirectX::CalculateAlignedSize(sizeof(HInstanceBuffer), 256) * Meshes.size();
-			D3D12_RESOURCE_DESC ResourceDesc = RenderPass.InstanceBufferResources[BackBufferIndex].Resource->GetDesc();
-			if (ResourceDesc.Width < InstanceBufferAlignedSize)
+			uint64_t InstanceBufferAlignedSize = HDirectX::CalculateAlignedSize(sizeof(HInstanceBuffer), 256);
+			uint64_t OldInstanceBufferCount = RenderPass.InstanceBufferResources[BackBufferIndex].size();
+			if (OldInstanceBufferCount < Meshes.size())
 			{
-				RenderPass.InstanceBufferResources[BackBufferIndex].Resource->Unmap(0, nullptr);
+				RenderPass.InstanceBufferResources[BackBufferIndex].resize(Meshes.size());
+				RenderPass.MappedInstanceBuffers[BackBufferIndex].resize(Meshes.size());
+				RenderPass.InstanceBufferDescriptors[BackBufferIndex].resize(Meshes.size());
 
-				// Instance Resources
-				if (!HDirectX::CreateOrUpdateUploadBufferResource(
-						RenderPass.InstanceBufferResources[BackBufferIndex],
-						DirectXContext.Device,
-						InstanceBufferAlignedSize))
+				for (uint64_t MeshIndex = OldInstanceBufferCount; MeshIndex < Meshes.size(); MeshIndex++)
 				{
-					return false;
-				}
-				CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
-				if (!CheckResult(RenderPass.InstanceBufferResources[BackBufferIndex].Resource->Map(
-						0,
-						&ReadRange,
-						reinterpret_cast<void**>(&RenderPass.MappedInstanceBuffers[BackBufferIndex]))))
-				{
-					return false;
-				}
+					// Create Resources
+					if (!HDirectX::CreateOrUpdateUploadBufferResource(
+							RenderPass.InstanceBufferResources[BackBufferIndex][MeshIndex],
+							DirectXContext.Device,
+							InstanceBufferAlignedSize))
+					{
+						return false;
+					}
 
-				if (RenderPass.InstanceBufferDescriptors[BackBufferIndex].size() < Meshes.size())
-				{
-					RenderPass.InstanceBufferDescriptors[BackBufferIndex].resize(Meshes.size());
-				}
-				for (size_t MeshIndex = 0; MeshIndex < Meshes.size(); MeshIndex++)
-				{
-					const HMesh& Mesh = Meshes[MeshIndex];
+					// Map Resources
+					CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
+					if (!CheckResult(RenderPass.InstanceBufferResources[BackBufferIndex][MeshIndex].Resource->Map(
+							0,
+							&ReadRange,
+							reinterpret_cast<void**>(&RenderPass.MappedInstanceBuffers[BackBufferIndex][MeshIndex]))))
+					{
+						return false;
+					}
+
+					// Create CBV
 					if (!HDirectX::CreateOrUpdateCBV(
 							RenderPass.InstanceBufferDescriptors[BackBufferIndex][MeshIndex],
-							RenderPass.InstanceBufferResources[BackBufferIndex],
-							MeshIndex * HDirectX::CalculateAlignedSize(sizeof(HInstanceBuffer), 256),
-							HDirectX::CalculateAlignedSize(sizeof(HInstanceBuffer), 256),
+							RenderPass.InstanceBufferResources[BackBufferIndex][MeshIndex],
+							0,
+							InstanceBufferAlignedSize,
 							RenderPass.CBVSRVUAVDescriptorHeap,
 							DirectXContext.Device))
 					{
@@ -459,6 +486,7 @@ bool HHoney::RenderRenderPass(
 			}
 		}
 
+		// Update the instance buffers
 		uint64_t VertexBufferOffset = 0;
 		for (size_t MeshIndex = 0; MeshIndex < Meshes.size(); MeshIndex++)
 		{
@@ -469,7 +497,7 @@ bool HHoney::RenderRenderPass(
 				sizeof(HVertex) * Mesh.Verticies.size());
 			VertexBufferOffset += Mesh.Verticies.size();
 
-			(RenderPass.MappedInstanceBuffers[BackBufferIndex] + MeshIndex)->Translation =
+			RenderPass.MappedInstanceBuffers[BackBufferIndex][MeshIndex]->Translation =
 				glm::vec4(Mesh.Translation, 0.0f);
 		}
 	}

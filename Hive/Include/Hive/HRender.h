@@ -153,9 +153,9 @@ struct HRenderPass
 	std::array<HSceneBuffer*, OutputBufferCount> MappedSceneBuffers{};
 
 	// Instance Buffer
-	std::array<HResource, OutputBufferCount> InstanceBufferResources{};
+	std::array<std::vector<HResource>, OutputBufferCount> InstanceBufferResources{};
 	std::array<std::vector<HDescriptor>, OutputBufferCount> InstanceBufferDescriptors{};
-	std::array<HInstanceBuffer*, OutputBufferCount> MappedInstanceBuffers{};
+	std::array< std::vector<HInstanceBuffer*>, OutputBufferCount> MappedInstanceBuffers{};
 
 	// Vertex
 	Microsoft::WRL::ComPtr<ID3D12Resource> VertexBufferResource = nullptr;
