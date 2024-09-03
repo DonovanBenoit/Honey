@@ -469,8 +469,8 @@ bool HHoney::RenderRenderPass(
 				sizeof(HVertex) * Mesh.Verticies.size());
 			VertexBufferOffset += Mesh.Verticies.size();
 
-			(RenderPass.MappedInstanceBuffers[BackBufferIndex] + MeshIndex)->ModelMatrix =
-				glm::transpose(Mesh.ModelMatrix);
+			(RenderPass.MappedInstanceBuffers[BackBufferIndex] + MeshIndex)->Translation =
+				glm::vec4(Mesh.Translation, 0.0f);
 		}
 	}
 

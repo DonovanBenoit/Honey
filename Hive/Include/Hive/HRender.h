@@ -116,7 +116,8 @@ struct HSceneBuffer
 
 struct HInstanceBuffer
 {
-	glm::mat4 ModelMatrix;
+	glm::vec4 Translation;
+	glm::vec3 Padding[15];
 };
 
 struct HRenderPass
