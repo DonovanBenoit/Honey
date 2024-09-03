@@ -123,6 +123,7 @@ struct HDescriptorHeap
 
 namespace HDirectX
 {
+	size_t CalculateAlignedSize(size_t Size, size_t ALignment);
 	bool CreateDeviceD3D(ID3D12Device** Device, HWND HWND);
 	bool CreateRTVHeap(HDescriptorHeap& RTVDescHeap, ID3D12Device* Device, uint32_t DescriptorCount);
 	bool CreateCBVSRVUAVHeap(HDescriptorHeap& CBVSRVUAVDescHeap, ID3D12Device* Device, uint32_t DescriptorCount);
@@ -157,6 +158,8 @@ namespace HDirectX
 	bool CreateOrUpdateCBV(
 		HDescriptor& Descriptor,
 		HResource& Resource,
+		uint32_t Offset,
+		uint32_t Size,
 		HDescriptorHeap& DescriptorHeap,
 		ID3D12Device* Device);
 

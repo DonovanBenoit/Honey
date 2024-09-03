@@ -14,7 +14,15 @@ struct HSceneBuffer
     float4 Padding[14];
 };
 
+struct HInstanceBuffer
+{
+    float4x4 Model;
+    float4 Padding[12];
+};
+
 HSceneBuffer SceneBuffer : register(b0);
+
+HInstanceBuffer InstanceBuffer : register(b1);
 
 HPSInput VSMain(float4 Position : POSITION, float4 UV : TEXCOORD)
 {

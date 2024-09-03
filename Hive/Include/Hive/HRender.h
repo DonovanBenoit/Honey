@@ -114,6 +114,11 @@ struct HSceneBuffer
 	glm::vec4 Scale;
 };
 
+struct HInstanceBuffer
+{
+	glm::mat4 ModelMatrix;
+};
+
 struct HRenderPass
 {
 	ID3D12CommandQueue* CommandQueue = nullptr;
@@ -145,6 +150,11 @@ struct HRenderPass
 	std::array<HResource, OutputBufferCount> SceneBufferResources{};
 	std::array<HDescriptor, OutputBufferCount> SceneBufferDescriptors{};
 	std::array<HSceneBuffer*, OutputBufferCount> MappedSceneBuffers{};
+
+	// Instance Buffer
+	std::array<HResource, OutputBufferCount> InstanceBufferResources{};
+	std::array<std::vector<HDescriptor>, OutputBufferCount> InstanceBufferDescriptors{};
+	std::array<HInstanceBuffer*, OutputBufferCount> MappedInstanceBuffers{};
 
 	// Vertex
 	Microsoft::WRL::ComPtr<ID3D12Resource> VertexBufferResource = nullptr;

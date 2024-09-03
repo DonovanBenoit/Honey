@@ -28,6 +28,7 @@ struct HVertex
 
 struct HMesh
 {
+	glm::mat4 ModelMatrix;
 	std::vector<HVertex> Verticies;
 };
 

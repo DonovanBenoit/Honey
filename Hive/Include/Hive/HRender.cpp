@@ -214,6 +214,8 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 		if (!HDirectX::CreateOrUpdateCBV(
 				RenderPass.SceneBufferDescriptors[OutputResource],
 				RenderPass.SceneBufferResources[OutputResource],
+				0,
+				HDirectX::CalculateAlignedSize(sizeof(HSceneBuffer), 256),
 				RenderPass.CBVSRVUAVDescriptorHeap,
 				DirectXContext.Device))
 		{
@@ -227,10 +229,38 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 		{
 			return false;
 		}
+
+		// Instance Resources
+		if (!HDirectX::CreateOrUpdateUploadBufferResource(
+				RenderPass.InstanceBufferResources[OutputResource],
+				DirectXContext.Device,
+				sizeof(HInstanceBuffer)))
+		{
+			return false;
+		}
+		if (!CheckResult(RenderPass.InstanceBufferResources[OutputResource].Resource->Map(
+				0,
+				&ReadRange,
+				reinterpret_cast<void**>(&RenderPass.MappedInstanceBuffers[OutputResource]))))
+		{
+			return false;
+		}
+		RenderPass.InstanceBufferDescriptors[OutputResource].resize(1);
+		if (!HDirectX::CreateOrUpdateCBV(
+				RenderPass.InstanceBufferDescriptors[OutputResource][0],
+				RenderPass.InstanceBufferResources[OutputResource],
+				0,
+				HDirectX::CalculateAlignedSize(sizeof(HInstanceBuffer), 256),
+				RenderPass.CBVSRVUAVDescriptorHeap,
+				DirectXContext.Device))
+		{
+			return false;
+		}
 	}
 
 	RenderPass.RootSignature.AddRootParameter("SceneBuffer", HRootParameterType::CBV, HShaderVisibility::Vertex);
 	RenderPass.RootSignature.AddRootParameter("Texture", HRootParameterType::SRV, HShaderVisibility::Pixel);
+	RenderPass.RootSignature.AddRootParameter("InstanceBuffer", HRootParameterType::CBV, HShaderVisibility::Vertex);
 	RenderPass.RootSignature.Build(DirectXContext, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	Microsoft::WRL::ComPtr<ID3DBlob> VSBlob;
@@ -381,14 +411,66 @@ bool HHoney::RenderRenderPass(
 				RenderPass.VertexBufferView.SizeInBytes = VertexBufferSize;
 			}
 		}
-		uint64_t VertexBufferOffset = 0;
-		for (const HMesh& Mesh : Meshes)
+
+		// Resize the instance Buffers
 		{
+			uint64_t InstanceBufferAlignedSize =
+				HDirectX::CalculateAlignedSize(sizeof(HInstanceBuffer), 256) * Meshes.size();
+			D3D12_RESOURCE_DESC ResourceDesc = RenderPass.InstanceBufferResources[BackBufferIndex].Resource->GetDesc();
+			if (ResourceDesc.Width < InstanceBufferAlignedSize)
+			{
+				RenderPass.InstanceBufferResources[BackBufferIndex].Resource->Unmap(0, nullptr);
+
+				// Instance Resources
+				if (!HDirectX::CreateOrUpdateUploadBufferResource(
+						RenderPass.InstanceBufferResources[BackBufferIndex],
+						DirectXContext.Device,
+						InstanceBufferAlignedSize))
+				{
+					return false;
+				}
+				CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
+				if (!CheckResult(RenderPass.InstanceBufferResources[BackBufferIndex].Resource->Map(
+						0,
+						&ReadRange,
+						reinterpret_cast<void**>(&RenderPass.MappedInstanceBuffers[BackBufferIndex]))))
+				{
+					return false;
+				}
+
+				if (RenderPass.InstanceBufferDescriptors[BackBufferIndex].size() < Meshes.size())
+				{
+					RenderPass.InstanceBufferDescriptors[BackBufferIndex].resize(Meshes.size());
+				}
+				for (size_t MeshIndex = 0; MeshIndex < Meshes.size(); MeshIndex++)
+				{
+					const HMesh& Mesh = Meshes[MeshIndex];
+					if (!HDirectX::CreateOrUpdateCBV(
+							RenderPass.InstanceBufferDescriptors[BackBufferIndex][MeshIndex],
+							RenderPass.InstanceBufferResources[BackBufferIndex],
+							MeshIndex * HDirectX::CalculateAlignedSize(sizeof(HInstanceBuffer), 256),
+							HDirectX::CalculateAlignedSize(sizeof(HInstanceBuffer), 256),
+							RenderPass.CBVSRVUAVDescriptorHeap,
+							DirectXContext.Device))
+					{
+						return false;
+					}
+				}
+			}
+		}
+
+		uint64_t VertexBufferOffset = 0;
+		for (size_t MeshIndex = 0; MeshIndex < Meshes.size(); MeshIndex++)
+		{
+			const HMesh& Mesh = Meshes[MeshIndex];
 			memcpy(
 				RenderPass.VertexBufferData + VertexBufferOffset,
 				Mesh.Verticies.data(),
 				sizeof(HVertex) * Mesh.Verticies.size());
 			VertexBufferOffset += Mesh.Verticies.size();
+
+			(RenderPass.MappedInstanceBuffers[BackBufferIndex] + MeshIndex)->ModelMatrix =
+				glm::transpose(Mesh.ModelMatrix);
 		}
 	}
 
@@ -451,10 +533,20 @@ bool HHoney::RenderRenderPass(
 	RenderPass.CommandList->IASetVertexBuffers(0, 1, &RenderPass.VertexBufferView);
 
 	uint64_t StartVertexLocation = 0;
-	for (const HMesh& Mesh : Meshes)
+	for (size_t MeshIndex = 0; MeshIndex < Meshes.size(); MeshIndex++)
 	{
+		const HMesh& Mesh = Meshes[MeshIndex];
+		RenderPass.CommandList->SetGraphicsRootDescriptorTable(
+			2,
+			RenderPass.InstanceBufferDescriptors[BackBufferIndex][MeshIndex].GPUDescriptorHandle);
 		RenderPass.CommandList->DrawInstanced(glm::max(3ull, Mesh.Verticies.size()), 1, StartVertexLocation, 0);
 		StartVertexLocation += Mesh.Verticies.size();
+	}
+	if (Meshes.empty())
+	{
+		RenderPass.CommandList->SetGraphicsRootDescriptorTable(
+			2,
+			RenderPass.InstanceBufferDescriptors[BackBufferIndex][0].GPUDescriptorHandle);
 	}
 
 	D3D12_RESOURCE_BARRIER EndBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(

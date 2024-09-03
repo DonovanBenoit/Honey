@@ -1,12 +1,9 @@
 #include "HDirectX.h"
 
-namespace
+size_t HDirectX::CalculateAlignedSize(size_t Size, size_t ALignment)
 {
-	size_t CalculateAlignedSize(size_t Size, size_t ALignment)
-	{
-		return ((Size + ALignment - 1) / ALignment) * ALignment;
-	}
-} // namespace
+	return ((Size + ALignment - 1) / ALignment) * ALignment;
+}
 
 bool HDirectX::CreateDeviceD3D(ID3D12Device** Device, HWND HWND)
 {
@@ -214,6 +211,8 @@ bool HDirectX::CreateOrUpdateUAV(
 bool HDirectX::CreateOrUpdateCBV(
 	HDescriptor& Descriptor,
 	HResource& Resource,
+	uint32_t Offset,
+	uint32_t Size,
 	HDescriptorHeap& DescriptorHeap,
 	ID3D12Device* Device)
 {
@@ -228,9 +227,14 @@ bool HDirectX::CreateOrUpdateCBV(
 		return false;
 	}
 
+	if ((Offset + Size) > ResourceDesc.Width)
+	{
+		return false;
+	}
+
 	D3D12_CONSTANT_BUFFER_VIEW_DESC CBVDesc{};
-	CBVDesc.BufferLocation = Resource.Resource->GetGPUVirtualAddress();
-	CBVDesc.SizeInBytes = ResourceDesc.Width;
+	CBVDesc.BufferLocation = Resource.Resource->GetGPUVirtualAddress() + Offset;
+	CBVDesc.SizeInBytes = Size;
 	Device->CreateConstantBufferView(&CBVDesc, Descriptor.CPUDescriptorHandle);
 }
 
@@ -534,8 +538,7 @@ bool HDirectX::CopyDataToResource(
 			break;
 		case D3D12_RESOURCE_DIMENSION_TEXTURE2D:
 			DataPitch = ResourceDesc.Width * 4;
-			ResourcePitch =
-				CalculateAlignedSize(ResourceDesc.Width * 4, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+			ResourcePitch = CalculateAlignedSize(ResourceDesc.Width * 4, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
 			break;
 		default:
 			assert(false);
@@ -613,10 +616,8 @@ bool HDirectX::CopyDataToResource(
 	}
 
 	// Transition the resource to the appropriate state for use
-	D3D12_RESOURCE_BARRIER EndBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
-		Resource.Resource,
-		D3D12_RESOURCE_STATE_COPY_DEST,
-		Resource.ResourceState);
+	D3D12_RESOURCE_BARRIER EndBarrier =
+		CD3DX12_RESOURCE_BARRIER::Transition(Resource.Resource, D3D12_RESOURCE_STATE_COPY_DEST, Resource.ResourceState);
 	CommandList->ResourceBarrier(1, &EndBarrier);
 
 	return true;
