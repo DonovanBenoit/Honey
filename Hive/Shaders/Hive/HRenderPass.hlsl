@@ -17,18 +17,17 @@ struct HSceneBuffer
 struct HInstanceBuffer
 {
     float4 Translation;
-    float4 Padding[15];
 };
 
 HSceneBuffer SceneBuffer : register(b0);
 
-HInstanceBuffer InstanceBuffer : register(b1);
+StructuredBuffer<HInstanceBuffer> InstanceBuffers : register(t1);
 
 HPSInput VSMain(float4 Position : POSITION, float4 UV : TEXCOORD, uint InstanceID : SV_InstanceID)
 {
     HPSInput Result;
 
-    Result.Position.xyz = (InstanceBuffer.Translation.xyz + Position.xyz + float3(InstanceID * 40.0, 0.0, 0.0)) * SceneBuffer.Scale / 1024.0;
+    Result.Position.xyz = (InstanceBuffers[InstanceID].Translation.xyz + Position.xyz) * SceneBuffer.Scale / 1024.0;
     Result.Position.w = 1.0;
     Result.UV = UV;
 

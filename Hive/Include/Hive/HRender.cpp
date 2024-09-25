@@ -13,11 +13,12 @@
 #include <thread>
 #include <vector>
 
-void HRootSignature::AddRootParameter(
+HRootParameterIndex HRootSignature::AddRootParameter(
 	std::string_view Name,
 	HRootParameterType RootParameterType,
 	HShaderVisibility ShaderVisibility)
 {
+	HRootParameterIndex Index = static_cast<HRootParameterIndex>(RootParameters.size());
 	HRootParameter& RootParameter = RootParameters.emplace_back();
 	RootParameter.Name = Name;
 	RootParameter.RootParameterType = RootParameterType;
@@ -55,8 +56,11 @@ void HRootSignature::AddRootParameter(
 		break;
 		case HRootParameterType::Unknown:
 		default:
+			assert(false);
 			break;
 	}
+
+	return Index;
 }
 
 bool HRootSignature::Build(HDirectXContext& DirectXContext, D3D12_ROOT_SIGNATURE_FLAGS RootSignatureFlags)
@@ -247,31 +251,29 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 
 		// Instance Resources
 		{
-			RenderPass.InstanceBufferResources[OutputResource].resize(1);
 			if (!HDirectX::CreateOrUpdateUploadBufferResource(
-					RenderPass.InstanceBufferResources[OutputResource][0],
+					RenderPass.InstanceBufferResources[OutputResource],
 					DirectXContext.Device,
-					sizeof(HInstanceBuffer)))
+					sizeof(glm::vec4)))
 			{
 				assert(false);
 				return false;
 			}
-			RenderPass.MappedInstanceBuffers[OutputResource].resize(1);
 			CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
-			if (!CheckResult(RenderPass.InstanceBufferResources[OutputResource][0].Resource->Map(
+			if (!CheckResult(RenderPass.InstanceBufferResources[OutputResource].Resource->Map(
 					0,
 					&ReadRange,
-					reinterpret_cast<void**>(&RenderPass.MappedInstanceBuffers[OutputResource][0]))))
+					reinterpret_cast<void**>(&RenderPass.MappedInstanceBuffers[OutputResource]))))
 			{
 				assert(false);
 				return false;
 			}
-			RenderPass.InstanceBufferDescriptors[OutputResource].resize(1);
-			if (!HDirectX::CreateOrUpdateCBV(
-					RenderPass.InstanceBufferDescriptors[OutputResource][0],
-					RenderPass.InstanceBufferResources[OutputResource][0],
+			if (!HDirectX::CreateOrUpdateStructuredBufferSRV(
+					RenderPass.InstanceBufferDescriptors[OutputResource],
+					RenderPass.InstanceBufferResources[OutputResource].Resource,
 					0,
-					HDirectX::CalculateAlignedSize(sizeof(HInstanceBuffer), 256),
+					1,
+					sizeof(glm::vec4),
 					RenderPass.CBVSRVUAVDescriptorHeap,
 					DirectXContext.Device))
 			{
@@ -281,10 +283,11 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 		}
 	}
 
-	RenderPass.RootSignature.AddRootParameter("SceneBuffer", HRootParameterType::CBV, HShaderVisibility::Vertex);
+	RenderPass.SceneBufferIndex =
+		RenderPass.RootSignature.AddRootParameter("SceneBuffer", HRootParameterType::CBV, HShaderVisibility::Vertex);
 	RenderPass.RootSignature.AddRootParameter("Texture", HRootParameterType::SRV, HShaderVisibility::Pixel);
-	RenderPass.RootSignature.AddRootParameter("InstanceBuffer", HRootParameterType::CBV, HShaderVisibility::Vertex);
-	RenderPass.RootSignature.AddRootParameter("ModelBuffer", HRootParameterType::CBV, HShaderVisibility::Vertex);
+	RenderPass.InstanceBufferIndex =
+		RenderPass.RootSignature.AddRootParameter("InstanceBuffer", HRootParameterType::SRV, HShaderVisibility::Vertex);
 	RenderPass.RootSignature.Build(DirectXContext, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	Microsoft::WRL::ComPtr<ID3DBlob> VSBlob;
@@ -332,6 +335,7 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 	}
 
 	// Create the vertex buffer.
+	for (uint64_t OutputResource = 0; OutputResource < HRenderPass::OutputBufferCount; OutputResource++)
 	{
 		// Define the geometry for a triangle.
 		HVertex TriangleVertices[] = { { { 0.0f, 0.25f, 0.0f }, { 0.5f, 0.0f } },
@@ -352,7 +356,7 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 			&VertexBufferDesc,
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
-			IID_PPV_ARGS(&RenderPass.VertexBufferResource));
+			IID_PPV_ARGS(&RenderPass.VertexBufferResources[OutputResource]));
 		if (!SUCCEEDED(Result))
 		{
 			assert(false);
@@ -362,18 +366,18 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 		// Map the GPU buffer so we can write to it
 		CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
 		Result =
-			RenderPass.VertexBufferResource->Map(0, &ReadRange, reinterpret_cast<void**>(&RenderPass.VertexBufferData));
+			RenderPass.VertexBufferResources[OutputResource]->Map(0, &ReadRange, reinterpret_cast<void**>(&RenderPass.MappedVertexBufferData[OutputResource]));
 		if (!SUCCEEDED(Result))
 		{
 			assert(false);
 			return false;
 		}
-		memcpy(RenderPass.VertexBufferData, TriangleVertices, sizeof(TriangleVertices));
+		memcpy(RenderPass.MappedVertexBufferData[OutputResource], TriangleVertices, sizeof(TriangleVertices));
 
 		// Initialize the vertex buffer view.
-		RenderPass.VertexBufferView.BufferLocation = RenderPass.VertexBufferResource->GetGPUVirtualAddress();
-		RenderPass.VertexBufferView.StrideInBytes = sizeof(HVertex);
-		RenderPass.VertexBufferView.SizeInBytes = VertexBufferSize;
+		RenderPass.VertexBufferViews[OutputResource].BufferLocation = RenderPass.VertexBufferResources[OutputResource]->GetGPUVirtualAddress();
+		RenderPass.VertexBufferViews[OutputResource].StrideInBytes = sizeof(HVertex);
+		RenderPass.VertexBufferViews[OutputResource].SizeInBytes = VertexBufferSize;
 	}
 
 	return true;
@@ -384,8 +388,7 @@ bool HHoney::RenderRenderPass(
 	HRenderPass& RenderPass,
 	const glm::vec3& Translation,
 	const glm::vec3& Scale,
-	const HMesh& Mesh,
-	const std::vector<glm::vec3>& Transforms,
+	const std::vector<HInstancedMesh>& InstanedMeshes,
 	const HTexture& Texture,
 	const glm::vec2& Resolution)
 {
@@ -400,16 +403,16 @@ bool HHoney::RenderRenderPass(
 	// Update Mesh Buffers
 	{
 		uint64_t VertexBufferSize = 0;
-		//for (const HMesh& Mesh : Meshes)
+		for (const HInstancedMesh& InstanedMesh : InstanedMeshes)
 		{
-			VertexBufferSize += sizeof(HVertex) * Mesh.Verticies.size();
+			VertexBufferSize += sizeof(HVertex) * InstanedMesh.Mesh->Verticies.size();
 		}
 		if (VertexBufferSize > 0)
 		{
 			// Resize the vertex buffer
-			if (RenderPass.VertexBufferView.SizeInBytes != VertexBufferSize)
+			if (RenderPass.VertexBufferViews[BackBufferIndex].SizeInBytes != VertexBufferSize)
 			{
-				RenderPass.VertexBufferResource->Unmap(0, nullptr);
+				RenderPass.VertexBufferResources[BackBufferIndex]->Unmap(0, nullptr);
 				// Note: using upload heaps to transfer static data like vert buffers is not
 				// recommended. Every time the GPU needs it, the upload heap will be marshalled
 				// over. Please read up on Default Heap usage. An upload heap is used here for
@@ -422,87 +425,96 @@ bool HHoney::RenderRenderPass(
 						&VertexBufferDesc,
 						D3D12_RESOURCE_STATE_GENERIC_READ,
 						nullptr,
-						IID_PPV_ARGS(&RenderPass.VertexBufferResource))))
+						IID_PPV_ARGS(&RenderPass.VertexBufferResources[BackBufferIndex]))))
 				{
 					return false;
 				}
 
 				// Map the GPU buffer so we can write to it
 				CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
-				if (!CheckResult(RenderPass.VertexBufferResource
-									 ->Map(0, &ReadRange, reinterpret_cast<void**>(&RenderPass.VertexBufferData))))
+				if (!CheckResult(RenderPass.VertexBufferResources[BackBufferIndex]
+									 ->Map(0, &ReadRange, reinterpret_cast<void**>(&RenderPass.MappedVertexBufferData[BackBufferIndex]))))
 				{
 					return false;
 				}
 
 				// Initialize the vertex buffer view.
-				RenderPass.VertexBufferView.BufferLocation = RenderPass.VertexBufferResource->GetGPUVirtualAddress();
-				RenderPass.VertexBufferView.StrideInBytes = sizeof(HVertex);
-				RenderPass.VertexBufferView.SizeInBytes = VertexBufferSize;
+				RenderPass.VertexBufferViews[BackBufferIndex].BufferLocation = RenderPass.VertexBufferResources[BackBufferIndex]->GetGPUVirtualAddress();
+				RenderPass.VertexBufferViews[BackBufferIndex].StrideInBytes = sizeof(HVertex);
+				RenderPass.VertexBufferViews[BackBufferIndex].SizeInBytes = VertexBufferSize;
+			}
+		}
+		// Update the Mesh Data
+		{
+			uint64_t VertexBufferOffset = 0;
+			for (const HInstancedMesh& InstanedMesh : InstanedMeshes)
+			{
+				uint64_t MeshVertexBufferSize = sizeof(HVertex) * InstanedMesh.Mesh->Verticies.size();
+				memcpy(RenderPass.MappedVertexBufferData[BackBufferIndex] + VertexBufferOffset, InstanedMesh.Mesh->Verticies.data(), MeshVertexBufferSize);
+				VertexBufferOffset += MeshVertexBufferSize;
 			}
 		}
 
 		// Resize the instance Buffers
 		{
-			uint64_t InstanceBufferAlignedSize = HDirectX::CalculateAlignedSize(sizeof(HInstanceBuffer), 256);
-			uint64_t OldInstanceBufferCount = RenderPass.InstanceBufferResources[BackBufferIndex].size();
-			if (OldInstanceBufferCount < Transforms.size())
+			uint64_t InstanceBufferSize = 0;
+			for (const HInstancedMesh& InstanedMesh : InstanedMeshes)
 			{
-				RenderPass.InstanceBufferResources[BackBufferIndex].resize(Transforms.size());
-				RenderPass.MappedInstanceBuffers[BackBufferIndex].resize(Transforms.size());
-				RenderPass.InstanceBufferDescriptors[BackBufferIndex].resize(Transforms.size());
+				InstanceBufferSize += sizeof(glm::vec4) * InstanedMesh.Translations.size();
+			}
+			
+			uint64_t OldInstanceBufferSize = RenderPass.InstanceBufferResources[BackBufferIndex].Resource->GetDesc().Width;
+			if (InstanceBufferSize > OldInstanceBufferSize)
+			{
+				RenderPass.InstanceBufferResources[BackBufferIndex].Resource->Unmap(0, nullptr);
+				RenderPass.MappedInstanceBuffers[BackBufferIndex] = nullptr;
 
-				for (uint64_t MeshIndex = OldInstanceBufferCount; MeshIndex < Transforms.size(); MeshIndex++)
+				// Create Resource
+				if (!HDirectX::CreateOrUpdateUploadBufferResource(
+					RenderPass.InstanceBufferResources[BackBufferIndex],
+					DirectXContext.Device,
+					InstanceBufferSize))
 				{
-					// Create Resources
-					if (!HDirectX::CreateOrUpdateUploadBufferResource(
-							RenderPass.InstanceBufferResources[BackBufferIndex][MeshIndex],
-							DirectXContext.Device,
-							InstanceBufferAlignedSize))
-					{
-						return false;
-					}
+					return false;
+				}
 
-					// Map Resources
-					CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
-					if (!CheckResult(RenderPass.InstanceBufferResources[BackBufferIndex][MeshIndex].Resource->Map(
-							0,
-							&ReadRange,
-							reinterpret_cast<void**>(&RenderPass.MappedInstanceBuffers[BackBufferIndex][MeshIndex]))))
-					{
-						return false;
-					}
+				// Map Resource
+				CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
+				if (!CheckResult(RenderPass.InstanceBufferResources[BackBufferIndex].Resource->Map(
+					0,
+					&ReadRange,
+					reinterpret_cast<void**>(&RenderPass.MappedInstanceBuffers[BackBufferIndex]))))
+				{
+					return false;
+				}
 
-					// Create CBV
-					if (!HDirectX::CreateOrUpdateCBV(
-							RenderPass.InstanceBufferDescriptors[BackBufferIndex][MeshIndex],
-							RenderPass.InstanceBufferResources[BackBufferIndex][MeshIndex],
-							0,
-							InstanceBufferAlignedSize,
-							RenderPass.CBVSRVUAVDescriptorHeap,
-							DirectXContext.Device))
-					{
-						return false;
-					}
+				// Create SRV
+				if (!HDirectX::CreateOrUpdateStructuredBufferSRV(
+					RenderPass.InstanceBufferDescriptors[BackBufferIndex],
+					RenderPass.InstanceBufferResources[BackBufferIndex].Resource,
+					0,
+					InstanceBufferSize / sizeof(glm::vec4),
+					sizeof(glm::vec4),
+					RenderPass.CBVSRVUAVDescriptorHeap,
+					DirectXContext.Device))
+				{
+					assert(false);
+					return false;
 				}
 			}
 		}
 
-		// Update the Mesh Data
-		{
-			memcpy(
-				RenderPass.VertexBufferData,
-				Mesh.Verticies.data(),
-				sizeof(HVertex) * Mesh.Verticies.size());
-		}
 
 		// Update the instance buffers
-		uint64_t VertexBufferOffset = 0;
-		for (size_t TransformIndex = 0; TransformIndex < Transforms.size(); TransformIndex++)
 		{
-			glm::vec4 Transltion = glm::vec4(Transforms[TransformIndex], 0.0f);
+			uint64_t InstanceBufferOffset = 0;
 
-			RenderPass.MappedInstanceBuffers[BackBufferIndex][TransformIndex]->Translation = Transltion;
+			for (const HInstancedMesh& InstanedMesh : InstanedMeshes)
+			{
+				uint64_t MeshInstanceBufferSize = sizeof(glm::vec4) * InstanedMesh.Translations.size();
+				memcpy(RenderPass.MappedInstanceBuffers[BackBufferIndex] + InstanceBufferOffset, InstanedMesh.Translations.data(), MeshInstanceBufferSize);
+				InstanceBufferOffset += MeshInstanceBufferSize;
+			}
 		}
 	}
 
@@ -525,7 +537,7 @@ bool HHoney::RenderRenderPass(
 	RenderPass.CommandList->SetDescriptorHeaps(_countof(Heaps), Heaps);
 
 	RenderPass.CommandList->SetGraphicsRootDescriptorTable(
-		0,
+		static_cast<uint32_t>(RenderPass.SceneBufferIndex),
 		RenderPass.SceneBufferDescriptors[BackBufferIndex].GPUDescriptorHandle);
 
 	if (RenderPass.TextureDescriptors.empty())
@@ -562,15 +574,18 @@ bool HHoney::RenderRenderPass(
 		0,
 		nullptr);
 	RenderPass.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	RenderPass.CommandList->IASetVertexBuffers(0, 1, &RenderPass.VertexBufferView);
+	RenderPass.CommandList->IASetVertexBuffers(0, 1, &RenderPass.VertexBufferViews[BackBufferIndex]);
 
 	RenderPass.CommandList->SetGraphicsRootDescriptorTable(
-		2,
-		RenderPass.InstanceBufferDescriptors[BackBufferIndex][0].GPUDescriptorHandle);
+		static_cast<uint32_t>(RenderPass.InstanceBufferIndex),
+		RenderPass.InstanceBufferDescriptors[BackBufferIndex].GPUDescriptorHandle);
 
-	if (!Transforms.empty())
+	uint64_t InstanceOffset = 0;
+	for (const HInstancedMesh& InstanedMesh : InstanedMeshes)
 	{
-		RenderPass.CommandList->DrawInstanced(glm::max(3ull, Mesh.Verticies.size()), Transforms.size(), 0, 0);
+		// Draw the same mesh at multiple locations
+		RenderPass.CommandList->DrawInstanced(glm::max(3ull, InstanedMesh.Mesh->Verticies.size()), InstanedMesh.Translations.size(), 0, InstanceOffset);
+		InstanceOffset += InstanedMesh.Translations.size();
 	}
 
 	D3D12_RESOURCE_BARRIER EndBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(

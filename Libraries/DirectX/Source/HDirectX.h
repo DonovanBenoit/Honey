@@ -148,6 +148,15 @@ namespace HDirectX
 		HDescriptorHeap& DescriptorHeap,
 		ID3D12Device* Device);
 
+	bool CreateOrUpdateStructuredBufferSRV(
+		HDescriptor& Descriptor,
+		ID3D12Resource* Resource,
+		uint64_t FirstElement,
+		uint64_t NumElements,
+		uint64_t StructureByteStride,
+		HDescriptorHeap& DescriptorHeap,
+		ID3D12Device* Device);
+
 	bool CreateOrUpdateUAV(
 		HDescriptor& Descriptor,
 		ID3D12Resource* Resource,

@@ -11,6 +11,7 @@
 
 struct HGUIImage;
 struct HGUIWindow;
+struct HInstancedMesh;
 struct HMesh;
 struct HScene;
 struct HTexture;
@@ -40,6 +41,11 @@ struct HRootParameter
 	uint32_t DescriptorRangeOffset = 0;
 };
 
+enum class HRootParameterIndex : uint32_t
+{
+	Null = std::numeric_limits<uint32_t>::max()
+};
+
 struct HRootSignature
 {
 	std::vector<CD3DX12_DESCRIPTOR_RANGE1> DescriptorRanges{};
@@ -47,7 +53,12 @@ struct HRootSignature
 
 	std::vector<HRootParameter> RootParameters{};
 
-	void AddRootParameter(
+	inline HRootParameter& operator[] (HRootParameterIndex Index)
+	{
+		return RootParameters[static_cast<uint32_t>(Index)];
+	}
+
+	HRootParameterIndex AddRootParameter(
 		std::string_view Name,
 		HRootParameterType RootParameterType,
 		HShaderVisibility ShaderVisibility = HShaderVisibility::All);
@@ -148,19 +159,22 @@ struct HRenderPass
 	std::array<HDescriptor, OutputBufferCount> OutputRTVDescriptors{};
 
 	// Scene Buffer
+	HRootParameterIndex SceneBufferIndex = HRootParameterIndex::Null;
 	std::array<HResource, OutputBufferCount> SceneBufferResources{};
 	std::array<HDescriptor, OutputBufferCount> SceneBufferDescriptors{};
 	std::array<HSceneBuffer*, OutputBufferCount> MappedSceneBuffers{};
 
 	// Instance Buffer
-	std::array<std::vector<HResource>, OutputBufferCount> InstanceBufferResources{};
-	std::array<std::vector<HDescriptor>, OutputBufferCount> InstanceBufferDescriptors{};
-	std::array<std::vector<HInstanceBuffer*>, OutputBufferCount> MappedInstanceBuffers{};
+	HRootParameterIndex InstanceBufferIndex = HRootParameterIndex::Null;
+	std::array<HResource, OutputBufferCount> InstanceBufferResources{};
+	std::array<HDescriptor, OutputBufferCount> InstanceBufferDescriptors{};
+	std::array<HInstanceBuffer*, OutputBufferCount> MappedInstanceBuffers{};
 
 	// Vertex
-	Microsoft::WRL::ComPtr<ID3D12Resource> VertexBufferResource = nullptr;
-	D3D12_VERTEX_BUFFER_VIEW VertexBufferView;
-	HVertex* VertexBufferData = nullptr;
+	HRootParameterIndex VertexBufferIndex = HRootParameterIndex::Null;
+	std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, OutputBufferCount> VertexBufferResources{};
+	std::array<D3D12_VERTEX_BUFFER_VIEW, OutputBufferCount> VertexBufferViews{};
+	std::array<HVertex*, OutputBufferCount> MappedVertexBufferData{};
 };
 
 struct HRenderWindow
@@ -177,8 +191,7 @@ namespace HHoney
 		HRenderPass& RenderPass,
 		const glm::vec3& Translation,
 		const glm::vec3& Scale,
-		const HMesh& Mesh,
-		const std::vector<glm::vec3>& Transforms,
+		const std::vector<HInstancedMesh>& InstanedMeshes,
 		const HTexture& Texture,
 		const glm::vec2& Resolution);
 } // namespace HHoney

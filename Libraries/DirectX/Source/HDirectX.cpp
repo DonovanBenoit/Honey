@@ -133,7 +133,6 @@ bool HDirectX::CreateOrUpdateSRV(
 		Descriptor = DescriptorHeap.AllocateDescriptor();
 	}
 
-	// UAV
 	D3D12_RESOURCE_DESC ResourceDesc = Resource->GetDesc();
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC SRVDescriptor{};
@@ -145,12 +144,48 @@ bool HDirectX::CreateOrUpdateSRV(
 			SRVDescriptor.Format = ResourceDesc.Format;
 			SRVDescriptor.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 			SRVDescriptor.Texture2D.MipLevels = 1;
-			break;
 		}
+		break;
 		default:
 			assert(false);
 			return false;
 	}
+
+	Device->CreateShaderResourceView(Resource, &SRVDescriptor, Descriptor.CPUDescriptorHandle);
+	return true;
+}
+
+bool HDirectX::CreateOrUpdateStructuredBufferSRV(
+	HDescriptor& Descriptor,
+	ID3D12Resource* Resource,
+	uint64_t FirstElement,
+	uint64_t NumElements,
+	uint64_t StructureByteStride,
+	HDescriptorHeap& DescriptorHeap,
+	ID3D12Device* Device)
+{
+	if (Descriptor.CPUDescriptorHandle.ptr == 0)
+	{
+		Descriptor = DescriptorHeap.AllocateDescriptor();
+	}
+
+	D3D12_RESOURCE_DESC ResourceDesc = Resource->GetDesc();
+
+	if (ResourceDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER)
+	{
+		assert(false);
+		return false;
+	}
+
+	// https://learn.microsoft.com/en-us/windows/win32/direct3d12/creating-descriptors
+	D3D12_SHADER_RESOURCE_VIEW_DESC SRVDescriptor{};
+	SRVDescriptor.Format = DXGI_FORMAT_UNKNOWN;
+	SRVDescriptor.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+	SRVDescriptor.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	SRVDescriptor.Buffer.FirstElement = FirstElement;
+	SRVDescriptor.Buffer.NumElements = static_cast<UINT>(NumElements);
+	SRVDescriptor.Buffer.StructureByteStride = static_cast<UINT>(StructureByteStride);
+	SRVDescriptor.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 
 	Device->CreateShaderResourceView(Resource, &SRVDescriptor, Descriptor.CPUDescriptorHandle);
 	return true;

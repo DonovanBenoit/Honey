@@ -58,12 +58,12 @@ int main(int, char**)
 
 		// Render Dear ImGui graphics
 		GUIWindow.DirectXContext->CommandList->ClearRenderTargetView(
-			GUIWindow.RenderTargetDescriptor[backBufferIdx],
+			GUIWindow.RenderTargetDescriptors[backBufferIdx].CPUDescriptorHandle,
 			reinterpret_cast<float*>(&ClearColor),
 			0,
 			NULL);
 		GUIWindow.DirectXContext->CommandList
-			->OMSetRenderTargets(1, &GUIWindow.RenderTargetDescriptor[backBufferIdx], FALSE, NULL);
+			->OMSetRenderTargets(1, &GUIWindow.RenderTargetDescriptors[backBufferIdx].CPUDescriptorHandle, FALSE, NULL);
 		GUIWindow.DirectXContext->CommandList->SetDescriptorHeaps(1, &GUIWindow.CBVSRVUAV_DescHeap.DescriptorHeap);
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), GUIWindow.DirectXContext->CommandList);
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
