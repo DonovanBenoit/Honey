@@ -24,11 +24,11 @@ HSceneBuffer SceneBuffer : register(b0);
 
 HInstanceBuffer InstanceBuffer : register(b1);
 
-HPSInput VSMain(float4 Position : POSITION, float4 UV : TEXCOORD)
+HPSInput VSMain(float4 Position : POSITION, float4 UV : TEXCOORD, uint InstanceID : SV_InstanceID)
 {
     HPSInput Result;
 
-    Result.Position.xyz = (InstanceBuffer.Translation.xyz + Position.xyz + SceneBuffer.Translation.xyz) * SceneBuffer.Scale / 1024.0;
+    Result.Position.xyz = (InstanceBuffer.Translation.xyz + Position.xyz + float3(InstanceID * 40.0, 0.0, 0.0)) * SceneBuffer.Scale / 1024.0;
     Result.Position.w = 1.0;
     Result.UV = UV;
 

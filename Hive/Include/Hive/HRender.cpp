@@ -284,6 +284,7 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 	RenderPass.RootSignature.AddRootParameter("SceneBuffer", HRootParameterType::CBV, HShaderVisibility::Vertex);
 	RenderPass.RootSignature.AddRootParameter("Texture", HRootParameterType::SRV, HShaderVisibility::Pixel);
 	RenderPass.RootSignature.AddRootParameter("InstanceBuffer", HRootParameterType::CBV, HShaderVisibility::Vertex);
+	RenderPass.RootSignature.AddRootParameter("ModelBuffer", HRootParameterType::CBV, HShaderVisibility::Vertex);
 	RenderPass.RootSignature.Build(DirectXContext, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	Microsoft::WRL::ComPtr<ID3DBlob> VSBlob;
@@ -383,7 +384,8 @@ bool HHoney::RenderRenderPass(
 	HRenderPass& RenderPass,
 	const glm::vec3& Translation,
 	const glm::vec3& Scale,
-	const std::vector<HMesh>& Meshes,
+	const HMesh& Mesh,
+	const std::vector<glm::vec3>& Transforms,
 	const HTexture& Texture,
 	const glm::vec2& Resolution)
 {
@@ -398,7 +400,7 @@ bool HHoney::RenderRenderPass(
 	// Update Mesh Buffers
 	{
 		uint64_t VertexBufferSize = 0;
-		for (const HMesh& Mesh : Meshes)
+		//for (const HMesh& Mesh : Meshes)
 		{
 			VertexBufferSize += sizeof(HVertex) * Mesh.Verticies.size();
 		}
@@ -444,13 +446,13 @@ bool HHoney::RenderRenderPass(
 		{
 			uint64_t InstanceBufferAlignedSize = HDirectX::CalculateAlignedSize(sizeof(HInstanceBuffer), 256);
 			uint64_t OldInstanceBufferCount = RenderPass.InstanceBufferResources[BackBufferIndex].size();
-			if (OldInstanceBufferCount < Meshes.size())
+			if (OldInstanceBufferCount < Transforms.size())
 			{
-				RenderPass.InstanceBufferResources[BackBufferIndex].resize(Meshes.size());
-				RenderPass.MappedInstanceBuffers[BackBufferIndex].resize(Meshes.size());
-				RenderPass.InstanceBufferDescriptors[BackBufferIndex].resize(Meshes.size());
+				RenderPass.InstanceBufferResources[BackBufferIndex].resize(Transforms.size());
+				RenderPass.MappedInstanceBuffers[BackBufferIndex].resize(Transforms.size());
+				RenderPass.InstanceBufferDescriptors[BackBufferIndex].resize(Transforms.size());
 
-				for (uint64_t MeshIndex = OldInstanceBufferCount; MeshIndex < Meshes.size(); MeshIndex++)
+				for (uint64_t MeshIndex = OldInstanceBufferCount; MeshIndex < Transforms.size(); MeshIndex++)
 				{
 					// Create Resources
 					if (!HDirectX::CreateOrUpdateUploadBufferResource(
@@ -486,19 +488,21 @@ bool HHoney::RenderRenderPass(
 			}
 		}
 
-		// Update the instance buffers
-		uint64_t VertexBufferOffset = 0;
-		for (size_t MeshIndex = 0; MeshIndex < Meshes.size(); MeshIndex++)
+		// Update the Mesh Data
 		{
-			const HMesh& Mesh = Meshes[MeshIndex];
 			memcpy(
-				RenderPass.VertexBufferData + VertexBufferOffset,
+				RenderPass.VertexBufferData,
 				Mesh.Verticies.data(),
 				sizeof(HVertex) * Mesh.Verticies.size());
-			VertexBufferOffset += Mesh.Verticies.size();
+		}
 
-			RenderPass.MappedInstanceBuffers[BackBufferIndex][MeshIndex]->Translation =
-				glm::vec4(Mesh.Translation, 0.0f);
+		// Update the instance buffers
+		uint64_t VertexBufferOffset = 0;
+		for (size_t TransformIndex = 0; TransformIndex < Transforms.size(); TransformIndex++)
+		{
+			glm::vec4 Transltion = glm::vec4(Transforms[TransformIndex], 0.0f);
+
+			RenderPass.MappedInstanceBuffers[BackBufferIndex][TransformIndex]->Translation = Transltion;
 		}
 	}
 
@@ -560,21 +564,13 @@ bool HHoney::RenderRenderPass(
 	RenderPass.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	RenderPass.CommandList->IASetVertexBuffers(0, 1, &RenderPass.VertexBufferView);
 
-	uint64_t StartVertexLocation = 0;
-	for (size_t MeshIndex = 0; MeshIndex < Meshes.size(); MeshIndex++)
+	RenderPass.CommandList->SetGraphicsRootDescriptorTable(
+		2,
+		RenderPass.InstanceBufferDescriptors[BackBufferIndex][0].GPUDescriptorHandle);
+
+	if (!Transforms.empty())
 	{
-		const HMesh& Mesh = Meshes[MeshIndex];
-		RenderPass.CommandList->SetGraphicsRootDescriptorTable(
-			2,
-			RenderPass.InstanceBufferDescriptors[BackBufferIndex][MeshIndex].GPUDescriptorHandle);
-		RenderPass.CommandList->DrawInstanced(glm::max(3ull, Mesh.Verticies.size()), 1, StartVertexLocation, 0);
-		StartVertexLocation += Mesh.Verticies.size();
-	}
-	if (Meshes.empty())
-	{
-		RenderPass.CommandList->SetGraphicsRootDescriptorTable(
-			2,
-			RenderPass.InstanceBufferDescriptors[BackBufferIndex][0].GPUDescriptorHandle);
+		RenderPass.CommandList->DrawInstanced(glm::max(3ull, Mesh.Verticies.size()), Transforms.size(), 0, 0);
 	}
 
 	D3D12_RESOURCE_BARRIER EndBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(

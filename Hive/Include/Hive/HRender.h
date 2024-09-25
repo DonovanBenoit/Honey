@@ -155,7 +155,7 @@ struct HRenderPass
 	// Instance Buffer
 	std::array<std::vector<HResource>, OutputBufferCount> InstanceBufferResources{};
 	std::array<std::vector<HDescriptor>, OutputBufferCount> InstanceBufferDescriptors{};
-	std::array< std::vector<HInstanceBuffer*>, OutputBufferCount> MappedInstanceBuffers{};
+	std::array<std::vector<HInstanceBuffer*>, OutputBufferCount> MappedInstanceBuffers{};
 
 	// Vertex
 	Microsoft::WRL::ComPtr<ID3D12Resource> VertexBufferResource = nullptr;
@@ -177,7 +177,8 @@ namespace HHoney
 		HRenderPass& RenderPass,
 		const glm::vec3& Translation,
 		const glm::vec3& Scale,
-		const std::vector<HMesh>& Meshes,
+		const HMesh& Mesh,
+		const std::vector<glm::vec3>& Transforms,
 		const HTexture& Texture,
 		const glm::vec2& Resolution);
 } // namespace HHoney

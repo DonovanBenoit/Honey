@@ -28,7 +28,6 @@ struct HVertex
 
 struct HMesh
 {
-	glm::vec3 Translation;
 	std::vector<HVertex> Verticies;
 };
 
