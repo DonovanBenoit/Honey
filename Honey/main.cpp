@@ -3,7 +3,7 @@
 #include "HWindow.h"
 
 #include <HDirectX.h>
-#include <Hive/HRender.h>
+#include <Hive/HCompute.h>
 #include <Hive/HScene.h>
 #include <Windows.h>
 

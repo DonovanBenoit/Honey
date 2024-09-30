@@ -2,8 +2,12 @@ cmake_minimum_required(VERSION 3.13)
 set(CMAKE_CXX_STANDARD 20)
 
 set(SOURCE_FILES
+	Include/Hive/HCompute.h
+	Include/Hive/HCompute.cpp
 	Include/Hive/HRender.h
 	Include/Hive/HRender.cpp
+	Include/Hive/HRootSignature.h
+	Include/Hive/HRootSignature.cpp
 	Include/Hive/HScene.h
 	Include/Hive/HScene.cpp
 	)
