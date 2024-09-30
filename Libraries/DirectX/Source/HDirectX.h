@@ -82,6 +82,25 @@ struct HResource
 	// Optional resource used for uploading
 	ID3D12Resource* UploadResource = nullptr;
 	void* MappedUploadResource = nullptr;
+
+	void Release()
+	{
+		if (UploadResource != nullptr)
+		{
+			MappedUploadResource = nullptr;
+			UploadResource->Unmap(0, nullptr);
+			ULONG ReferenceCount = UploadResource->Release();
+			assert(ReferenceCount == 0);
+			UploadResource = nullptr;
+		}
+
+		if (Resource != nullptr)
+		{
+			ULONG ReferenceCount = Resource->Release();
+			assert(ReferenceCount == 0);
+			Resource = nullptr;
+		}
+	}
 };
 
 struct HDescriptor

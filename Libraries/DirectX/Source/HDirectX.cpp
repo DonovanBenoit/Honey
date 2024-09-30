@@ -10,9 +10,16 @@ bool HDirectX::CreateDeviceD3D(ID3D12Device** Device, HWND HWND)
 
 	// [DEBUG] Enable debug interface
 #ifdef DX12_ENABLE_DEBUG_LAYER
-	ID3D12Debug* pdx12Debug = NULL;
-	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&pdx12Debug))))
-		pdx12Debug->EnableDebugLayer();
+	ID3D12Debug* DebugInterface = nullptr;
+	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&DebugInterface))))
+	{
+		DebugInterface->EnableDebugLayer();
+		ID3D12Debug1* DebugInterface1 = nullptr;
+		if (SUCCEEDED(DebugInterface->QueryInterface(IID_PPV_ARGS(&DebugInterface1))))
+		{
+			DebugInterface1->SetEnableGPUBasedValidation(true);
+		}
+	}
 #endif
 
 	// Create device
@@ -24,15 +31,15 @@ bool HDirectX::CreateDeviceD3D(ID3D12Device** Device, HWND HWND)
 
 	// [DEBUG] Setup debug interface to break on any warnings/errors
 #ifdef DX12_ENABLE_DEBUG_LAYER
-	if (pdx12Debug != NULL)
+	if (DebugInterface != NULL)
 	{
 		ID3D12InfoQueue* pInfoQueue = NULL;
 		(*Device)->QueryInterface(IID_PPV_ARGS(&pInfoQueue));
 		pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
 		pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
-		pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, true);
+		pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, false);
 		pInfoQueue->Release();
-		pdx12Debug->Release();
+		DebugInterface->Release();
 	}
 #endif
 	return true;

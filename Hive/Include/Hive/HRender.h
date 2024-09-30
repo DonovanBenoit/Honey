@@ -194,6 +194,7 @@ namespace HHoney
 		const std::vector<HInstancedMesh>& InstanedMeshes,
 		const HTexture& Texture,
 		const glm::vec2& Resolution);
+	bool DestroyRenderPass(HRenderPass& RenderPass);
 } // namespace HHoney
 
 namespace HHoney
