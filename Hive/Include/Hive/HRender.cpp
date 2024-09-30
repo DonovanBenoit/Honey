@@ -658,7 +658,7 @@ bool HHoney::RenderRenderPass(
 // D3D12 WARNING : Live         ID3D12CommandAllocator : 51[STATE_CREATION WARNING #255: LIVE_OBJECT_SUMMARY]
 // D3D12 WARNING : Live      ID3D12GraphicsCommandList : 9[STATE_CREATION WARNING #255: LIVE_OBJECT_SUMMARY]
 // D3D12 WARNING : Live           ID3D12DescriptorHeap : 2[STATE_CREATION WARNING #255: LIVE_OBJECT_SUMMARY]
-bool HHoney::DestroyRenderPass(HRenderPass& RenderPass)
+void HHoney::DestroyRenderPass(HRenderPass& RenderPass)
 {
 	if (RenderPass.FenceValue > 0)
 	{
@@ -677,6 +677,25 @@ bool HHoney::DestroyRenderPass(HRenderPass& RenderPass)
 
 		RenderPass.MappedSceneBuffers[OutputResource] = nullptr;
 		RenderPass.SceneBufferResources[OutputResource].Release();
+
+		RenderPass.OutputResources[OutputResource].Release();
+
+		RenderPass.PipelineState.Reset();
+
+		RenderPass.RootSignature.Release();
+
+		RenderPass.TextureDescriptors.clear();
+
+		RenderPass.RTVDescriptorHeap.Release();
+		RenderPass.CBVSRVUAVDescriptorHeap.Release();
+
+		RenderPass.Fence.Release();
+
+		RenderPass.UpdateCommandList->Release();
+		RenderPass.UpdateCommandAllocator->Release();
+
+		RenderPass.CommandList->Release();
+		RenderPass.CommandAllocator->Release();
 	}
 }
 

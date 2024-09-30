@@ -88,7 +88,11 @@ int main(int, char**)
 
 	HImGui::WaitForLastSubmittedFrame();
 
+	Scene.Registry.view<std::shared_ptr<HRenderPass>>().each(
+		[](entt::entity Entity, std::shared_ptr<HRenderPass> RenderPass) { HHoney::DestroyRenderPass(*RenderPass); });
+
 	HImGui::DestroyGUIWindow(GUIWindow);
+
 
 	return 0;
 }

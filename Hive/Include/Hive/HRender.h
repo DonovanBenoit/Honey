@@ -67,6 +67,17 @@ struct HRootSignature
 		HDirectXContext& DirectXContext,
 		D3D12_ROOT_SIGNATURE_FLAGS RootSignatureFlags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
 
+	void Release()
+	{
+		DescriptorRanges.clear();
+		RootParameters.clear();
+
+		if (RootSiganature)
+		{
+			RootSiganature.Reset();
+		}
+	}
+
 private:
 	uint32_t SRVRegisterCount = 0;
 	uint32_t UAVRegisterCount = 0;
@@ -194,7 +205,7 @@ namespace HHoney
 		const std::vector<HInstancedMesh>& InstanedMeshes,
 		const HTexture& Texture,
 		const glm::vec2& Resolution);
-	bool DestroyRenderPass(HRenderPass& RenderPass);
+	void DestroyRenderPass(HRenderPass& RenderPass);
 } // namespace HHoney
 
 namespace HHoney
