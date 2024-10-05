@@ -3,6 +3,8 @@
 HRootParameterIndex HRootSignature::AddRootParameter(
 	std::string_view Name,
 	HRootParameterType RootParameterType,
+	uint32_t NumDescriptors,
+	uint32_t ShaderSpace,
 	HShaderVisibility ShaderVisibility)
 {
 	HRootParameterIndex Index = static_cast<HRootParameterIndex>(RootParameters.size());
@@ -15,29 +17,39 @@ HRootParameterIndex HRootSignature::AddRootParameter(
 		case HRootParameterType::SRV:
 		{
 			RootParameter.ShaderRegister = SRVRegisterCount++;
+			RootParameter.ShaderSpace = ShaderSpace;
 			RootParameter.DescriptorRangeOffset = static_cast<uint32_t>(DescriptorRanges.size());
 			CD3DX12_DESCRIPTOR_RANGE1& DescriptorRange = DescriptorRanges.emplace_back();
-			DescriptorRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, RootParameter.ShaderRegister);
+			DescriptorRange.Init(
+				D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+				NumDescriptors,
+				RootParameter.ShaderRegister,
+				ShaderSpace,
+				NumDescriptors > 1 ? D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE
+								   : D3D12_DESCRIPTOR_RANGE_FLAG_NONE);
 		}
 		break;
 		case HRootParameterType::UAV:
 		{
 			RootParameter.ShaderRegister = UAVRegisterCount++;
 			RootParameter.DescriptorRangeOffset = static_cast<uint32_t>(DescriptorRanges.size());
+			RootParameter.ShaderSpace = ShaderSpace;
 			CD3DX12_DESCRIPTOR_RANGE1& DescriptorRange = DescriptorRanges.emplace_back();
-			DescriptorRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, RootParameter.ShaderRegister);
+			DescriptorRange
+				.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, NumDescriptors, RootParameter.ShaderRegister, ShaderSpace);
 		}
 		break;
 		case HRootParameterType::CBV:
 		{
 			RootParameter.ShaderRegister = CBVRegisterCount++;
 			RootParameter.DescriptorRangeOffset = static_cast<uint32_t>(DescriptorRanges.size());
+			RootParameter.ShaderSpace = ShaderSpace;
 			CD3DX12_DESCRIPTOR_RANGE1& DescriptorRange = DescriptorRanges.emplace_back();
 			DescriptorRange.Init(
 				D3D12_DESCRIPTOR_RANGE_TYPE_CBV,
-				1,
+				NumDescriptors,
 				RootParameter.ShaderRegister,
-				0,
+				ShaderSpace,
 				D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
 		}
 		break;

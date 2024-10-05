@@ -3,8 +3,10 @@
 #include "HRootSignature.h"
 
 #include <atomic>
-#include <entt/entt.hpp>
 #include <future>
+#include <unordered_map>
+
+#include <entt/entt.hpp>
 #include <glm/glm.hpp>
 
 #ifdef _WIN32
@@ -28,7 +30,6 @@ struct HSceneBuffer
 struct HInstanceBuffer
 {
 	glm::vec4 Translation;
-	glm::vec4 Padding[15];
 };
 
 struct HRenderPass
@@ -46,7 +47,12 @@ struct HRenderPass
 	HDescriptorHeap CBVSRVUAVDescriptorHeap{};
 	HDescriptorHeap RTVDescriptorHeap{};
 
-	std::vector<HDescriptor> TextureDescriptors{};
+	// Texture Array
+	uint64_t TextureCount = 0;
+	HRootParameterIndex TextureArrayRootParameter = HRootParameterIndex::Null;
+	inline static const uint64_t MaxTextureCount = 512;
+	std::array<HDescriptor, MaxTextureCount> TextureDescriptors{};
+	std::unordered_map<entt::entity, uint64_t> TextureIndexMap{};
 
 	HRootSignature RootSignature{};
 
@@ -85,8 +91,8 @@ namespace HHoney
 		HRenderPass& RenderPass,
 		const glm::vec3& Translation,
 		const glm::vec3& Scale,
+		const HScene& Scene,
 		const std::vector<HInstancedMesh>& InstanedMeshes,
-		const HTexture& Texture,
 		const glm::vec2& Resolution);
 	void DestroyRenderPass(HRenderPass& RenderPass);
 } // namespace HHoney

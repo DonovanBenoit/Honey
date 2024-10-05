@@ -162,21 +162,28 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 	}
 
 	RenderPass.SceneBufferIndex =
-		RenderPass.RootSignature.AddRootParameter("SceneBuffer", HRootParameterType::CBV, HShaderVisibility::Vertex);
-	RenderPass.RootSignature.AddRootParameter("Texture", HRootParameterType::SRV, HShaderVisibility::Pixel);
+		RenderPass.RootSignature
+			.AddRootParameter("SceneBuffer", HRootParameterType::CBV, 1, 0, HShaderVisibility::Vertex);
+	RenderPass.TextureArrayRootParameter = RenderPass.RootSignature.AddRootParameter(
+		"TextureArray",
+		HRootParameterType::SRV,
+		HRenderPass::MaxTextureCount,
+		1,
+		HShaderVisibility::Pixel);
 	RenderPass.InstanceBufferIndex =
-		RenderPass.RootSignature.AddRootParameter("InstanceBuffer", HRootParameterType::SRV, HShaderVisibility::Vertex);
+		RenderPass.RootSignature
+			.AddRootParameter("InstanceBuffer", HRootParameterType::SRV, 1, 0, HShaderVisibility::Vertex);
 	RenderPass.RootSignature.Build(DirectXContext, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	Microsoft::WRL::ComPtr<ID3DBlob> VSBlob;
-	if (!HDirectX::CompileShader("Shaders/Hive/HRenderPass.hlsl", "VSMain", "vs_5_0", VSBlob))
+	if (!HDirectX::CompileShader("Shaders/Hive/HRenderPass.hlsl", "VSMain", "vs_5_1", VSBlob))
 	{
 		assert(false);
 		return false;
 	}
 
 	Microsoft::WRL::ComPtr<ID3DBlob> PSBlob;
-	if (!HDirectX::CompileShader("Shaders/Hive/HRenderPass.hlsl", "PSMain", "ps_5_0", PSBlob))
+	if (!HDirectX::CompileShader("Shaders/Hive/HRenderPass.hlsl", "PSMain", "ps_5_1", PSBlob))
 	{
 		assert(false);
 		return false;
@@ -261,6 +268,14 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 		RenderPass.VertexBufferViews[OutputResource].SizeInBytes = VertexBufferSize;
 	}
 
+	// Allocate Range of Descriptors for the TextureArray
+	{
+		for (uint64_t TextureArrayIndex = 0; TextureArrayIndex < HRenderPass::MaxTextureCount; TextureArrayIndex++)
+		{
+			RenderPass.TextureDescriptors[TextureArrayIndex] = RenderPass.CBVSRVUAVDescriptorHeap.AllocateDescriptor();
+		}
+	}
+
 	return true;
 }
 
@@ -269,8 +284,8 @@ bool HHoney::RenderRenderPass(
 	HRenderPass& RenderPass,
 	const glm::vec3& Translation,
 	const glm::vec3& Scale,
+	const HScene& Scene,
 	const std::vector<HInstancedMesh>& InstanedMeshes,
-	const HTexture& Texture,
 	const glm::vec2& Resolution)
 {
 	// Swap Buffers
@@ -287,6 +302,23 @@ bool HHoney::RenderRenderPass(
 		for (const HInstancedMesh& InstanedMesh : InstanedMeshes)
 		{
 			VertexBufferSize += sizeof(HVertex) * InstanedMesh.Mesh->Verticies.size();
+
+			if (InstanedMesh.TextureEntity != entt::null)
+			{
+				const auto& FoundTexture = RenderPass.TextureIndexMap.find(InstanedMesh.TextureEntity);
+				if (FoundTexture == RenderPass.TextureIndexMap.end())
+				{
+					const HTexture& Texture = Scene.Registry.get<HTexture>(InstanedMesh.TextureEntity);
+					uint64_t TextureDescriptorIndex = RenderPass.TextureCount++;
+					HDescriptor& TextureDescriptor = RenderPass.TextureDescriptors[TextureDescriptorIndex];
+					HDirectX::CreateOrUpdateSRV(
+						TextureDescriptor,
+						Texture.Resource.Resource,
+						RenderPass.CBVSRVUAVDescriptorHeap,
+						DirectXContext.Device);
+					RenderPass.TextureIndexMap.insert({ InstanedMesh.TextureEntity, TextureDescriptorIndex });
+				}
+			}
 		}
 		if (VertexBufferSize > 0)
 		{
@@ -341,12 +373,6 @@ bool HHoney::RenderRenderPass(
 			{
 				uint64_t MeshVertexBufferSize = sizeof(HVertex) * InstanedMesh.Mesh->Verticies.size();
 				assert(VertexBufferIndex * sizeof(HVertex) + MeshVertexBufferSize <= VertexBufferSize);
-				OutputDebugStringA(std::format(
-									   "Write to VertexBuffer[{}] {} bytes at offset {}.\n",
-									   BackBufferIndex,
-									   MeshVertexBufferSize,
-									   VertexBufferIndex * sizeof(HVertex))
-									   .c_str());
 				memcpy(
 					RenderPass.MappedVertexBufferData[BackBufferIndex] + VertexBufferIndex,
 					InstanedMesh.Mesh->Verticies.data(),
@@ -360,7 +386,7 @@ bool HHoney::RenderRenderPass(
 			uint64_t InstanceBufferSize = 0;
 			for (const HInstancedMesh& InstanedMesh : InstanedMeshes)
 			{
-				InstanceBufferSize += sizeof(glm::vec4) * InstanedMesh.Translations.size();
+				InstanceBufferSize += sizeof(HInstanceBuffer) * InstanedMesh.Translations.size();
 			}
 
 			uint64_t OldInstanceBufferSize =
@@ -394,8 +420,8 @@ bool HHoney::RenderRenderPass(
 						RenderPass.InstanceBufferDescriptors[BackBufferIndex],
 						RenderPass.InstanceBufferResources[BackBufferIndex].Resource,
 						0,
-						InstanceBufferSize / sizeof(glm::vec4),
-						sizeof(glm::vec4),
+						InstanceBufferSize / sizeof(HInstanceBuffer),
+						sizeof(HInstanceBuffer),
 						RenderPass.CBVSRVUAVDescriptorHeap,
 						DirectXContext.Device))
 				{
@@ -411,12 +437,29 @@ bool HHoney::RenderRenderPass(
 
 			for (const HInstancedMesh& InstanedMesh : InstanedMeshes)
 			{
-				uint64_t MeshInstanceBufferSize = sizeof(glm::vec4) * InstanedMesh.Translations.size();
+				uint64_t MeshInstanceBufferSize = sizeof(HInstanceBuffer) * InstanedMesh.Translations.size();
 				memcpy(
 					RenderPass.MappedInstanceBuffers[BackBufferIndex] + InstanceBufferIndex,
 					InstanedMesh.Translations.data(),
 					MeshInstanceBufferSize);
-				InstanceBufferIndex++;
+
+				const auto& FoundTexture = RenderPass.TextureIndexMap.find(InstanedMesh.TextureEntity);
+				if (FoundTexture != RenderPass.TextureIndexMap.end())
+				{
+					uint64_t TextureIndex = FoundTexture->second;
+					uint64_t EndInstanceIndex = InstanceBufferIndex + InstanedMesh.Translations.size();
+					for (uint64_t InstanceIndex = InstanceBufferIndex; InstanceIndex < EndInstanceIndex;
+						 InstanceIndex++)
+					{
+						RenderPass.MappedInstanceBuffers[BackBufferIndex][InstanceIndex].Translation.w =
+							*reinterpret_cast<float*>(&TextureIndex);
+					}
+				}
+				else
+				{
+					assert(false);
+				}
+				InstanceBufferIndex += InstanedMesh.Translations.size();
 			}
 		}
 	}
@@ -433,26 +476,8 @@ bool HHoney::RenderRenderPass(
 	if (!CheckResult(RenderPass.CommandList->Reset(RenderPass.CommandAllocator, RenderPass.PipelineState.Get())))
 		return false;
 
-	// Set necessary state.
-	RenderPass.CommandList->SetGraphicsRootSignature(RenderPass.RootSignature.RootSiganature.Get());
-
 	ID3D12DescriptorHeap* Heaps[] = { RenderPass.CBVSRVUAVDescriptorHeap.DescriptorHeap };
 	RenderPass.CommandList->SetDescriptorHeaps(_countof(Heaps), Heaps);
-
-	RenderPass.CommandList->SetGraphicsRootDescriptorTable(
-		static_cast<uint32_t>(RenderPass.SceneBufferIndex),
-		RenderPass.SceneBufferDescriptors[BackBufferIndex].GPUDescriptorHandle);
-
-	if (RenderPass.TextureDescriptors.empty())
-	{
-		HDescriptor& TextureDescriptor = RenderPass.TextureDescriptors.emplace_back();
-		HDirectX::CreateOrUpdateSRV(
-			TextureDescriptor,
-			Texture.Resource.Resource,
-			RenderPass.CBVSRVUAVDescriptorHeap,
-			DirectXContext.Device);
-	}
-	RenderPass.CommandList->SetGraphicsRootDescriptorTable(1, RenderPass.TextureDescriptors[0].GPUDescriptorHandle);
 
 	CD3DX12_VIEWPORT Viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, Resolution.x, Resolution.y);
 	CD3DX12_RECT ScissorRect = CD3DX12_RECT(0, 0, Resolution.x, Resolution.y);
@@ -476,23 +501,38 @@ bool HHoney::RenderRenderPass(
 		ClearColor,
 		0,
 		nullptr);
-	RenderPass.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	RenderPass.CommandList->IASetVertexBuffers(0, 1, &RenderPass.VertexBufferViews[BackBufferIndex]);
 
-	RenderPass.CommandList->SetGraphicsRootDescriptorTable(
-		static_cast<uint32_t>(RenderPass.InstanceBufferIndex),
-		RenderPass.InstanceBufferDescriptors[BackBufferIndex].GPUDescriptorHandle);
-
-	uint64_t InstanceOffset = 0;
-	for (const HInstancedMesh& InstanedMesh : InstanedMeshes)
+	// Draw Meshes
+	if (!InstanedMeshes.empty())
 	{
-		// Draw the same mesh at multiple locations
-		RenderPass.CommandList->DrawInstanced(
-			glm::max(3ull, InstanedMesh.Mesh->Verticies.size()),
-			InstanedMesh.Translations.size(),
-			0,
-			InstanceOffset);
-		InstanceOffset += InstanedMesh.Translations.size();
+		// Set necessary state.
+		RenderPass.CommandList->SetGraphicsRootSignature(RenderPass.RootSignature.RootSiganature.Get());
+
+		RenderPass.CommandList->SetGraphicsRootDescriptorTable(
+			static_cast<uint32_t>(RenderPass.SceneBufferIndex),
+			RenderPass.SceneBufferDescriptors[BackBufferIndex].GPUDescriptorHandle);
+		RenderPass.CommandList->SetGraphicsRootDescriptorTable(
+			static_cast<uint32_t>(RenderPass.TextureArrayRootParameter),
+			RenderPass.TextureDescriptors[0].GPUDescriptorHandle);
+
+		RenderPass.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		RenderPass.CommandList->IASetVertexBuffers(0, 1, &RenderPass.VertexBufferViews[BackBufferIndex]);
+
+		RenderPass.CommandList->SetGraphicsRootDescriptorTable(
+			static_cast<uint32_t>(RenderPass.InstanceBufferIndex),
+			RenderPass.InstanceBufferDescriptors[BackBufferIndex].GPUDescriptorHandle);
+
+		uint64_t InstanceOffset = 0;
+		for (const HInstancedMesh& InstanedMesh : InstanedMeshes)
+		{
+			// Draw the same mesh at multiple locations
+			RenderPass.CommandList->DrawInstanced(
+				glm::max(3ull, InstanedMesh.Mesh->Verticies.size()),
+				InstanedMesh.Translations.size(),
+				0,
+				InstanceOffset);
+			InstanceOffset += InstanedMesh.Translations.size();
+		}
 	}
 
 	D3D12_RESOURCE_BARRIER EndBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(
@@ -562,7 +602,7 @@ void HHoney::DestroyRenderPass(HRenderPass& RenderPass)
 
 		RenderPass.RootSignature.Release();
 
-		RenderPass.TextureDescriptors.clear();
+		RenderPass.TextureIndexMap.clear();
 
 		RenderPass.RTVDescriptorHeap.Release();
 		RenderPass.CBVSRVUAVDescriptorHeap.Release();

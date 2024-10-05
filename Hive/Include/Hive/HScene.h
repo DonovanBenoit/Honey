@@ -31,12 +31,6 @@ struct HMesh
 	std::vector<HVertex> Verticies;
 };
 
-struct HInstancedMesh
-{
-	std::shared_ptr<HMesh> Mesh = nullptr;
-	std::vector<glm::vec4> Translations{};
-};
-
 enum class HTextureFlags : uint32_t
 {
 	None = 0,
@@ -55,6 +49,13 @@ struct HTexture
 	HResource Resource{};
 	HDescriptor Descriptor{};
 	HDescriptor RTVDescriptor{};
+};
+
+struct HInstancedMesh
+{
+	std::shared_ptr<HMesh> Mesh = nullptr;
+	entt::entity TextureEntity = entt::null;
+	std::vector<glm::vec4> Translations{};
 };
 
 struct HRenderedSphere

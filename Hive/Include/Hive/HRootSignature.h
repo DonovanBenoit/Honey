@@ -27,6 +27,7 @@ struct HRootParameter
 	HRootParameterType RootParameterType = HRootParameterType::Unknown;
 	HShaderVisibility ShaderVisibility = HShaderVisibility::All;
 	uint32_t ShaderRegister = 0;
+	uint32_t ShaderSpace = 0;
 	uint32_t DescriptorRangeOffset = 0;
 };
 
@@ -50,6 +51,8 @@ struct HRootSignature
 	HRootParameterIndex AddRootParameter(
 		std::string_view Name,
 		HRootParameterType RootParameterType,
+		uint32_t NumDescriptors = 1,
+		uint32_t ShaderSpace = 0,
 		HShaderVisibility ShaderVisibility = HShaderVisibility::All);
 
 	bool Build(

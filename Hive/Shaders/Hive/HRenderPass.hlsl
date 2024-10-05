@@ -2,9 +2,10 @@ struct HPSInput
 {
     float4 Position : SV_POSITION;
     float2 UV : TEXCOORD;
+    uint TextureIndex : SV_InstanceID;
 };
 
-Texture2D Texture : register(t0);
+Texture2D TextureArray[] : register(t0, space1);
 SamplerState Sampler : register(s0);
 
 struct HSceneBuffer
@@ -16,6 +17,7 @@ struct HSceneBuffer
 
 struct HInstanceBuffer
 {
+    // Pack TextureIndex into Translation.w
     float4 Translation;
 };
 
@@ -27,14 +29,15 @@ HPSInput VSMain(float4 Position : POSITION, float4 UV : TEXCOORD, uint InstanceI
 {
     HPSInput Result;
 
-    Result.Position.xyz = (InstanceBuffers[InstanceID].Translation.xyz + Position.xyz) * SceneBuffer.Scale / 1024.0;
+    Result.Position.xyz = (InstanceBuffers[InstanceID].Translation.xyz + Position.xyz + SceneBuffer.Translation.xyz) * SceneBuffer.Scale.xyz / 1024.0;
     Result.Position.w = 1.0;
-    Result.UV = UV;
+    Result.UV = UV.xy;
+    Result.TextureIndex = asuint(InstanceBuffers[InstanceID].Translation.w);
 
     return Result;
 }
 
 float4 PSMain(HPSInput Input) : SV_TARGET
 {
-    return Texture.Sample(Sampler, Input.UV);
+    return TextureArray[Input.TextureIndex].Sample(Sampler, Input.UV);
 }

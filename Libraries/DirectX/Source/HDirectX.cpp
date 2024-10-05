@@ -364,7 +364,7 @@ bool HDirectX::CompileShader(
 		D3D_COMPILE_STANDARD_FILE_INCLUDE,
 		EntryPoint.data(),
 		Target.data(),
-		0,
+		D3DCOMPILE_ENABLE_UNBOUNDED_DESCRIPTOR_TABLES,
 		0,
 		&ShaderBlob,
 		&ErrorBlob);
