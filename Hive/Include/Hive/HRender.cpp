@@ -146,7 +146,7 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 				assert(false);
 				return false;
 			}
-			if (!HDirectX::CreateOrUpdateStructuredBufferSRV(
+			/*if (!HDirectX::CreateOrUpdateStructuredBufferSRV(
 					RenderPass.InstanceBufferDescriptors[OutputResource],
 					RenderPass.InstanceBufferResources[OutputResource].Resource,
 					0,
@@ -157,7 +157,7 @@ bool HHoney::CreatRenderPass(HDirectXContext& DirectXContext, HRenderPass& Rende
 			{
 				assert(false);
 				return false;
-			}
+			}*/
 		}
 	}
 
@@ -295,7 +295,7 @@ bool HHoney::RenderRenderPass(
 	// Update Scene
 	RenderPass.MappedSceneBuffers[BackBufferIndex]->Translation = glm::vec4(Translation, 0.0f);
 	RenderPass.MappedSceneBuffers[BackBufferIndex]->Scale = glm::vec4(Scale, 0.0f);
-
+	uint64_t InstanceCount = 0;
 	// Update Mesh Buffers
 	{
 		uint64_t VertexBufferSize = 0;
@@ -344,12 +344,12 @@ bool HHoney::RenderRenderPass(
 				CD3DX12_RESOURCE_DESC VertexBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(VertexBufferSize);
 				CD3DX12_HEAP_PROPERTIES UploadHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 				if (!CheckResult(DirectXContext.Device->CreateCommittedResource(
-						&UploadHeapProperties,
-						D3D12_HEAP_FLAG_NONE,
-						&VertexBufferDesc,
-						D3D12_RESOURCE_STATE_GENERIC_READ,
-						nullptr,
-						IID_PPV_ARGS(&RenderPass.VertexBufferResources[BackBufferIndex]))))
+					&UploadHeapProperties,
+					D3D12_HEAP_FLAG_NONE,
+					&VertexBufferDesc,
+					D3D12_RESOURCE_STATE_GENERIC_READ,
+					nullptr,
+					IID_PPV_ARGS(&RenderPass.VertexBufferResources[BackBufferIndex]))))
 				{
 					return false;
 				}
@@ -359,9 +359,9 @@ bool HHoney::RenderRenderPass(
 				// Map the GPU buffer so we can write to it
 				CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
 				if (!CheckResult(RenderPass.VertexBufferResources[BackBufferIndex]->Map(
-						0,
-						&ReadRange,
-						reinterpret_cast<void**>(&RenderPass.MappedVertexBufferData[BackBufferIndex]))))
+					0,
+					&ReadRange,
+					reinterpret_cast<void**>(&RenderPass.MappedVertexBufferData[BackBufferIndex]))))
 				{
 					assert(false);
 					return false;
@@ -396,6 +396,7 @@ bool HHoney::RenderRenderPass(
 			for (const HInstancedMesh& InstanedMesh : InstanedMeshes)
 			{
 				InstanceBufferSize += sizeof(HInstanceBuffer) * InstanedMesh.Translations.size();
+				InstanceCount += InstanedMesh.Translations.size();
 			}
 
 			uint64_t OldInstanceBufferSize =
@@ -407,9 +408,9 @@ bool HHoney::RenderRenderPass(
 
 				// Create Resource
 				if (!HDirectX::CreateOrUpdateUploadBufferResource(
-						RenderPass.InstanceBufferResources[BackBufferIndex],
-						DirectXContext.Device,
-						InstanceBufferSize))
+					RenderPass.InstanceBufferResources[BackBufferIndex],
+					DirectXContext.Device,
+					InstanceBufferSize))
 				{
 					return false;
 				}
@@ -417,25 +418,35 @@ bool HHoney::RenderRenderPass(
 				// Map Resource
 				CD3DX12_RANGE ReadRange(0, 0); // We do not intend to read from this resource on the CPU.
 				if (!CheckResult(RenderPass.InstanceBufferResources[BackBufferIndex].Resource->Map(
-						0,
-						&ReadRange,
-						reinterpret_cast<void**>(&RenderPass.MappedInstanceBuffers[BackBufferIndex]))))
+					0,
+					&ReadRange,
+					reinterpret_cast<void**>(&RenderPass.MappedInstanceBuffers[BackBufferIndex]))))
 				{
 					return false;
 				}
 
-				// Create SRV
-				if (!HDirectX::CreateOrUpdateStructuredBufferSRV(
-						RenderPass.InstanceBufferDescriptors[BackBufferIndex],
+				// Create SRVs
+				RenderPass.InstanceBufferDescriptors[BackBufferIndex].resize(InstanedMeshes.size());
+				uint32_t InstancedMeshIndex = 0;
+				uint32_t InstanceBufferOffset = 0;
+				for (const HInstancedMesh& InstanedMesh : InstanedMeshes)
+				{
+					if (!HDirectX::CreateOrUpdateStructuredBufferSRV(
+						RenderPass.InstanceBufferDescriptors[BackBufferIndex][InstancedMeshIndex],
 						RenderPass.InstanceBufferResources[BackBufferIndex].Resource,
-						0,
-						InstanceBufferSize / sizeof(HInstanceBuffer),
+						InstanceBufferOffset,
+						InstanedMesh.Translations.size(),
 						sizeof(HInstanceBuffer),
 						RenderPass.CBVSRVUAVDescriptorHeap,
 						DirectXContext.Device))
-				{
-					assert(false);
-					return false;
+					{
+						assert(false);
+						return false;
+					}
+
+					InstanceBufferOffset += InstanedMesh.Translations.size();
+
+					InstancedMeshIndex++;
 				}
 			}
 		}
@@ -445,7 +456,9 @@ bool HHoney::RenderRenderPass(
 			uint64_t InstanceBufferIndex = 0;
 
 			for (const HInstancedMesh& InstanedMesh : InstanedMeshes)
+				//for (int32_t Index = InstanedMeshes.size() - 1; Index >= 0; Index--) 
 			{
+				//const HInstancedMesh& InstanedMesh = InstanedMeshes[Index];
 				uint64_t MeshInstanceBufferSize = sizeof(HInstanceBuffer) * InstanedMesh.Translations.size();
 				memcpy(
 					RenderPass.MappedInstanceBuffers[BackBufferIndex] + InstanceBufferIndex,
@@ -458,7 +471,7 @@ bool HHoney::RenderRenderPass(
 					uint64_t TextureIndex = FoundTexture->second;
 					uint64_t EndInstanceIndex = InstanceBufferIndex + InstanedMesh.Translations.size();
 					for (uint64_t InstanceIndex = InstanceBufferIndex; InstanceIndex < EndInstanceIndex;
-						 InstanceIndex++)
+						InstanceIndex++)
 					{
 						RenderPass.MappedInstanceBuffers[BackBufferIndex][InstanceIndex].Translation.w =
 							*reinterpret_cast<float*>(&TextureIndex);
@@ -479,82 +492,122 @@ bool HHoney::RenderRenderPass(
 	if (!CheckResult(RenderPass.CommandAllocator->Reset()))
 		return false;
 
-	// However, when ExecuteCommandList() is called on a particular command
-	// list, that command list can then be reset at any time and must be before
-	// re-recording.
-	if (!CheckResult(RenderPass.CommandList->Reset(RenderPass.CommandAllocator, RenderPass.PipelineState.Get())))
-		return false;
-
-	ID3D12DescriptorHeap* Heaps[] = { RenderPass.CBVSRVUAVDescriptorHeap.DescriptorHeap };
-	RenderPass.CommandList->SetDescriptorHeaps(_countof(Heaps), Heaps);
-
-	CD3DX12_VIEWPORT Viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, Resolution.x, Resolution.y);
-	CD3DX12_RECT ScissorRect = CD3DX12_RECT(0, 0, Resolution.x, Resolution.y);
-
-	RenderPass.CommandList->RSSetViewports(1, &Viewport);
-	RenderPass.CommandList->RSSetScissorRects(1, &ScissorRect);
-
-	// Indicate that the back buffer will be used as a render target.
-	D3D12_RESOURCE_BARRIER StartBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(
-		RenderPass.OutputResources[BackBufferIndex].Resource,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		D3D12_RESOURCE_STATE_RENDER_TARGET) };
-	RenderPass.CommandList->ResourceBarrier(_countof(StartBarriers), StartBarriers);
-	RenderPass.CommandList
-		->OMSetRenderTargets(1, &RenderPass.OutputRTVDescriptors[BackBufferIndex].CPUDescriptorHandle, FALSE, nullptr);
-
-	// Record commands.
-	const float ClearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-	RenderPass.CommandList->ClearRenderTargetView(
-		RenderPass.OutputRTVDescriptors[BackBufferIndex].CPUDescriptorHandle,
-		ClearColor,
-		0,
-		nullptr);
-
-	// Draw Meshes
-	if (!InstanedMeshes.empty())
+	// Clear Render Target
 	{
-		// Set necessary state.
-		RenderPass.CommandList->SetGraphicsRootSignature(RenderPass.RootSignature.RootSiganature.Get());
 
-		RenderPass.CommandList->SetGraphicsRootDescriptorTable(
-			static_cast<uint32_t>(RenderPass.SceneBufferIndex),
-			RenderPass.SceneBufferDescriptors[BackBufferIndex].GPUDescriptorHandle);
-		RenderPass.CommandList->SetGraphicsRootDescriptorTable(
-			static_cast<uint32_t>(RenderPass.TextureArrayRootParameter),
-			RenderPass.TextureDescriptors[0].GPUDescriptorHandle);
+		if (!CheckResult(RenderPass.CommandList->Reset(RenderPass.CommandAllocator, RenderPass.PipelineState.Get())))
+			return false;
+		
+		
+		// Indicate that the back buffer will be used as a render target.
+		D3D12_RESOURCE_BARRIER StartBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(
+			RenderPass.OutputResources[BackBufferIndex].Resource,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_STATE_RENDER_TARGET) };
+		RenderPass.CommandList->ResourceBarrier(_countof(StartBarriers), StartBarriers);
 
-		RenderPass.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		RenderPass.CommandList->IASetVertexBuffers(0, 1, &RenderPass.VertexBufferViews[BackBufferIndex]);
 
-		RenderPass.CommandList->SetGraphicsRootDescriptorTable(
-			static_cast<uint32_t>(RenderPass.InstanceBufferIndex),
-			RenderPass.InstanceBufferDescriptors[BackBufferIndex].GPUDescriptorHandle);
+		// Record commands.
+		const float ClearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+		RenderPass.CommandList->ClearRenderTargetView(
+			RenderPass.OutputRTVDescriptors[BackBufferIndex].CPUDescriptorHandle,
+			ClearColor,
+			0,
+			nullptr);
 
-		uint64_t InstanceOffset = 0;
-		for (const HInstancedMesh& InstanedMesh : InstanedMeshes)
-		{
-			// Draw the same mesh at multiple locations
-			RenderPass.CommandList->DrawInstanced(
-				glm::max(3ull, InstanedMesh.Mesh->Verticies.size()),
-				InstanedMesh.Translations.size(),
-				0,
-				InstanceOffset);
-			InstanceOffset += InstanedMesh.Translations.size();
-		}
+
+		D3D12_RESOURCE_BARRIER EndBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(
+			RenderPass.OutputResources[BackBufferIndex].Resource,
+			D3D12_RESOURCE_STATE_RENDER_TARGET,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE) };
+		RenderPass.CommandList->ResourceBarrier(_countof(EndBarriers), EndBarriers);
+
+		
+		if (!CheckResult(RenderPass.CommandList->Close()))
+			return false;
+
+		ID3D12CommandList* CommandLists[] = { RenderPass.CommandList };
+		DirectXContext.CommandQueue->ExecuteCommandLists(_countof(CommandLists), CommandLists);
 	}
 
-	D3D12_RESOURCE_BARRIER EndBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(
-		RenderPass.OutputResources[BackBufferIndex].Resource,
-		D3D12_RESOURCE_STATE_RENDER_TARGET,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE) };
-	RenderPass.CommandList->ResourceBarrier(_countof(EndBarriers), EndBarriers);
+	uint64_t InstanceMeshIndex = 0;
+	for (const HInstancedMesh& InstanedMesh : InstanedMeshes)
+	{
 
-	if (!CheckResult(RenderPass.CommandList->Close()))
-		return false;
+		// However, when ExecuteCommandList() is called on a particular command
+		// list, that command list can then be reset at any time and must be before
+		// re-recording.
+		if (!CheckResult(RenderPass.CommandList->Reset(RenderPass.CommandAllocator, RenderPass.PipelineState.Get())))
+			return false;
 
-	ID3D12CommandList* CommandLists[] = { RenderPass.CommandList };
-	DirectXContext.CommandQueue->ExecuteCommandLists(_countof(CommandLists), CommandLists);
+		ID3D12DescriptorHeap* Heaps[] = { RenderPass.CBVSRVUAVDescriptorHeap.DescriptorHeap };
+		RenderPass.CommandList->SetDescriptorHeaps(_countof(Heaps), Heaps);
+
+		CD3DX12_VIEWPORT Viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, Resolution.x, Resolution.y);
+		CD3DX12_RECT ScissorRect = CD3DX12_RECT(0, 0, Resolution.x, Resolution.y);
+
+		RenderPass.CommandList->RSSetViewports(1, &Viewport);
+		RenderPass.CommandList->RSSetScissorRects(1, &ScissorRect);
+
+		// Indicate that the back buffer will be used as a render target.
+		D3D12_RESOURCE_BARRIER StartBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(
+			RenderPass.OutputResources[BackBufferIndex].Resource,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_STATE_RENDER_TARGET) };
+		RenderPass.CommandList->ResourceBarrier(_countof(StartBarriers), StartBarriers);
+		RenderPass.CommandList
+			->OMSetRenderTargets(1, &RenderPass.OutputRTVDescriptors[BackBufferIndex].CPUDescriptorHandle, FALSE, nullptr);
+
+		
+
+		// Draw Meshes
+		if (!InstanedMeshes.empty())
+		{
+			// Set necessary state.
+			RenderPass.CommandList->SetGraphicsRootSignature(RenderPass.RootSignature.RootSiganature.Get());
+
+			RenderPass.CommandList->SetGraphicsRootDescriptorTable(
+				static_cast<uint32_t>(RenderPass.SceneBufferIndex),
+				RenderPass.SceneBufferDescriptors[BackBufferIndex].GPUDescriptorHandle);
+			RenderPass.CommandList->SetGraphicsRootDescriptorTable(
+				static_cast<uint32_t>(RenderPass.TextureArrayRootParameter),
+				RenderPass.TextureDescriptors[0].GPUDescriptorHandle);
+
+			RenderPass.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			RenderPass.CommandList->IASetVertexBuffers(0, 1, &RenderPass.VertexBufferViews[BackBufferIndex]);
+
+			RenderPass.CommandList->SetGraphicsRootDescriptorTable(
+				static_cast<uint32_t>(RenderPass.InstanceBufferIndex),
+				RenderPass.InstanceBufferDescriptors[BackBufferIndex][InstanceMeshIndex].GPUDescriptorHandle);
+
+			//for (const HInstancedMesh& InstanedMesh : InstanedMeshes)
+			{
+				//const HInstancedMesh& FirstInstanedMesh = InstanedMeshes[2];
+				// Draw the same mesh at multiple locations
+				RenderPass.CommandList->DrawInstanced(
+					glm::max(3ull, InstanedMesh.Mesh->Verticies.size()),
+					InstanedMesh.Translations.size(),
+					0,
+					0);
+				//InstanceOffset += InstanedMesh.Translations.size();
+			}
+			//assert(InstanceOffset == InstanceCount);
+		}
+
+		D3D12_RESOURCE_BARRIER EndBarriers[] = { CD3DX12_RESOURCE_BARRIER::Transition(
+			RenderPass.OutputResources[BackBufferIndex].Resource,
+			D3D12_RESOURCE_STATE_RENDER_TARGET,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE) };
+		RenderPass.CommandList->ResourceBarrier(_countof(EndBarriers), EndBarriers);
+
+		if (!CheckResult(RenderPass.CommandList->Close()))
+			return false;
+
+		ID3D12CommandList* CommandLists[] = { RenderPass.CommandList };
+		DirectXContext.CommandQueue->ExecuteCommandLists(_countof(CommandLists), CommandLists);
+
+		InstanceMeshIndex++;
+	}
 
 	// This might not work for more than 2 buffers
 	static_assert(HRenderPass::OutputBufferCount == 2);

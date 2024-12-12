@@ -73,7 +73,7 @@ struct HRenderPass
 	// Instance Buffer
 	HRootParameterIndex InstanceBufferIndex = HRootParameterIndex::Null;
 	std::array<HResource, OutputBufferCount> InstanceBufferResources{};
-	std::array<HDescriptor, OutputBufferCount> InstanceBufferDescriptors{};
+	std::array<std::vector<HDescriptor>, OutputBufferCount> InstanceBufferDescriptors{};
 	std::array<HInstanceBuffer*, OutputBufferCount> MappedInstanceBuffers{};
 
 	// Vertex
