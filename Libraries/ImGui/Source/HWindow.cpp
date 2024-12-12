@@ -184,7 +184,7 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
 
-	ImFont* Font = ImGui::GetIO().Fonts->AddFontFromFileTTF("C://Windows//Fonts//Consola.ttf", 24);
+	ImFont* Font = ImGui::GetIO().Fonts->AddFontFromFileTTF("C://Windows//Fonts//Consola.ttf", 20);
 
 	// Setup Platform/Renderer backends
 	ImGui_ImplGlfw_InitForOther(GUIWindow.Window, true);

@@ -251,6 +251,43 @@ void HHoney::DetailsPanel(HRelativeTransform& RelativeTransform)
 	ImGui::SliderDouble3("Translation", &RelativeTransform.Translation.x, -10.0, 10.0);
 }
 
+namespace
+{
+	void BresenhamLine(int x1, int y1, int x2, int y2, std::function<bool(int32_t, int32_t)> PointFunction)
+	{
+		int dx = abs(x2 - x1);		 // Difference in x-coordinates
+		int dy = abs(y2 - y1);		 // Difference in y-coordinates
+		int sx = (x1 < x2) ? 1 : -1; // Step in x direction
+		int sy = (y1 < y2) ? 1 : -1; // Step in y direction
+		int err = dx - dy;			 // Initial decision parameter
+
+		while (true)
+		{
+			if (!PointFunction(x1, y1))
+			{
+				return;
+			}
+
+			if (x1 == x2 && y1 == y2)
+				break; // If we've reached the destination point
+
+			int e2 = 2 * err;
+
+			// Decision making for next pixel
+			if (e2 > -dy)
+			{
+				err -= dy;
+				x1 += sx;
+			}
+			if (e2 < dx)
+			{
+				err += dx;
+				y1 += sy;
+			}
+		}
+	}
+} // namespace
+
 void HHoney::DetailsPanel(HTexture& Texture)
 {
 	if (ImGui::Button("Save"))
@@ -312,36 +349,94 @@ void HHoney::DetailsPanel(HTexture& Texture)
 		{ 1, 1 },
 		ImVec4{ 1, 1, 1, 1 });
 
+	static glm::vec2 PreviousPixelInImage{};
+	enum class HPaintMode
+	{
+		None,
+		Pen,
+		Picker
+	};
+	static HPaintMode PaintMode = HPaintMode::None;
+
 	glm::vec2 MousePosInImage = glm::vec2(ImGui::GetMousePos()) - CursorPos;
 	glm::vec2 PixelInImage = glm::floor(MousePosInImage / Scale);
 
-	if (PixelInImage.x >= 0.0f && PixelInImage.y >= 0.0f && PixelInImage.x < Texture.Resolution.x
-		&& PixelInImage.y < Texture.Resolution.y)
-	{
-		uint64_t Pixel = PixelInImage.y * Texture.Resolution.x + PixelInImage.x;
+	bool TextureHovered = PixelInImage.x >= 0.0f && PixelInImage.y >= 0.0f && PixelInImage.x < Texture.Resolution.x
+						  && PixelInImage.y < Texture.Resolution.y;
 
-		if (ImGui::GetIO().MouseDown[ImGuiMouseButton_Left])
+	if (TextureHovered)
+	{
+		if (ImGui::GetIO().MouseClicked[ImGuiMouseButton_Left])
 		{
-			Texture.Data.data()[Pixel * 4 + 0] = glm::clamp(Color[0] * 255.0f, 0.0f, 255.0f);
-			Texture.Data.data()[Pixel * 4 + 1] = glm::clamp(Color[1] * 255.0f, 0.0f, 255.0f);
-			Texture.Data.data()[Pixel * 4 + 2] = glm::clamp(Color[2] * 255.0f, 0.0f, 255.0f);
-			Texture.Data.data()[Pixel * 4 + 3] = glm::clamp(Color[3] * 255.0f, 0.0f, 255.0f);
-			Texture.Version++;
+			PaintMode = HPaintMode::Pen;
 		}
-		else if (ImGui::GetIO().MouseDown[ImGuiMouseButton_Right])
+		if (ImGui::GetIO().MouseClicked[ImGuiMouseButton_Right])
 		{
-			Color[0] = static_cast<float>(Texture.Data.data()[Pixel * 4 + 0]) / 255.0f;
-			Color[1] = static_cast<float>(Texture.Data.data()[Pixel * 4 + 1]) / 255.0f;
-			Color[2] = static_cast<float>(Texture.Data.data()[Pixel * 4 + 2]) / 255.0f;
-			Color[3] = static_cast<float>(Texture.Data.data()[Pixel * 4 + 3]) / 255.0f;
+			PaintMode = HPaintMode::Picker;
+		}
+	}
+
+	if (PaintMode == HPaintMode::Pen && !ImGui::GetIO().MouseDown[ImGuiMouseButton_Left])
+	{
+		PaintMode = HPaintMode::None;
+	}
+	if (PaintMode == HPaintMode::Picker && !ImGui::GetIO().MouseDown[ImGuiMouseButton_Right])
+	{
+		PaintMode = HPaintMode::None;
+	}
+
+	// if (TextureHovered)
+	{
+		switch (PaintMode)
+		{
+			case HPaintMode::Pen:
+			{
+				BresenhamLine(
+					PixelInImage.x,
+					PixelInImage.y,
+					PreviousPixelInImage.x,
+					PreviousPixelInImage.y,
+					[&](int32_t X, int32_t Y) {
+
+						if (X < 0 || X >= Texture.Resolution.x)
+						{
+							return false;
+						}
+						if (Y < 0 || Y >= Texture.Resolution.y)
+						{
+							return false;
+						}
+
+						uint64_t Pixel = Y * Texture.Resolution.x + X;
+						Texture.Data.data()[Pixel * 4 + 0] = glm::clamp(Color[0] * 255.0f, 0.0f, 255.0f);
+						Texture.Data.data()[Pixel * 4 + 1] = glm::clamp(Color[1] * 255.0f, 0.0f, 255.0f);
+						Texture.Data.data()[Pixel * 4 + 2] = glm::clamp(Color[2] * 255.0f, 0.0f, 255.0f);
+						Texture.Data.data()[Pixel * 4 + 3] = glm::clamp(Color[3] * 255.0f, 0.0f, 255.0f);
+
+						return true;
+					});
+				Texture.Version++;
+			}
+			break;
+			case HPaintMode::Picker:
+			{
+				uint64_t Pixel = PixelInImage.y * Texture.Resolution.x + PixelInImage.x;
+				Color[0] = static_cast<float>(Texture.Data.data()[Pixel * 4 + 0]) / 255.0f;
+				Color[1] = static_cast<float>(Texture.Data.data()[Pixel * 4 + 1]) / 255.0f;
+				Color[2] = static_cast<float>(Texture.Data.data()[Pixel * 4 + 2]) / 255.0f;
+				Color[3] = static_cast<float>(Texture.Data.data()[Pixel * 4 + 3]) / 255.0f;
+			}
+			break;
 		}
 
 		ImGui::SetTooltip(std::format(
-			"MousePos = [{}, {}] -> [{}, {}]",
-			MousePosInImage.x,
-			MousePosInImage.y,
-			PixelInImage.x,
-			PixelInImage.y)
-			.c_str());
+							  "MousePos = [{}, {}] -> [{}, {}]",
+							  MousePosInImage.x,
+							  MousePosInImage.y,
+							  PixelInImage.x,
+							  PixelInImage.y)
+							  .c_str());
 	}
+
+	PreviousPixelInImage = PixelInImage;
 }

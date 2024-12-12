@@ -39,5 +39,6 @@ HPSInput VSMain(float4 Position : POSITION, float4 UV : TEXCOORD, uint InstanceI
 
 float4 PSMain(HPSInput Input) : SV_TARGET
 {
+    return float4(Input.UV, 0.0, 1.0);
     return TextureArray[Input.TextureIndex].Sample(Sampler, Input.UV);
 }

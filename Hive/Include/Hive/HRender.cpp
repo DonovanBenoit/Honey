@@ -305,18 +305,27 @@ bool HHoney::RenderRenderPass(
 
 			if (InstanedMesh.TextureEntity != entt::null)
 			{
-				const auto& FoundTexture = RenderPass.TextureIndexMap.find(InstanedMesh.TextureEntity);
-				if (FoundTexture == RenderPass.TextureIndexMap.end())
+				// Allocate Texture Descriptor
 				{
+					const auto& FoundTexture = RenderPass.TextureIndexMap.find(InstanedMesh.TextureEntity);
+					if (FoundTexture == RenderPass.TextureIndexMap.end())
+					{
+						uint64_t TextureDescriptorIndex = RenderPass.TextureCount++;
+						RenderPass.TextureIndexMap.insert({ InstanedMesh.TextureEntity, TextureDescriptorIndex });
+					}
+				}
+
+				// Update Texture Descriptors
+				const auto& FoundTexture = RenderPass.TextureIndexMap.find(InstanedMesh.TextureEntity);
+				if (FoundTexture != RenderPass.TextureIndexMap.end())
+				{
+					HDescriptor& TextureDescriptor = RenderPass.TextureDescriptors[FoundTexture->second];
 					const HTexture& Texture = Scene.Registry.get<HTexture>(InstanedMesh.TextureEntity);
-					uint64_t TextureDescriptorIndex = RenderPass.TextureCount++;
-					HDescriptor& TextureDescriptor = RenderPass.TextureDescriptors[TextureDescriptorIndex];
 					HDirectX::CreateOrUpdateSRV(
 						TextureDescriptor,
 						Texture.Resource.Resource,
 						RenderPass.CBVSRVUAVDescriptorHeap,
 						DirectXContext.Device);
-					RenderPass.TextureIndexMap.insert({ InstanedMesh.TextureEntity, TextureDescriptorIndex });
 				}
 			}
 		}
