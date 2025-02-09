@@ -86,7 +86,8 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 		return false;
 	}
 
-	if (!HDirectX::CreateFence(GUIWindow.Fence, GUIWindow.DirectXContext->Device))
+	GUIWindow.Fence = HDirectX::CreateFence(GUIWindow.DirectXContext->Device);
+	if (!GUIWindow.Fence)
 	{
 		HImGui::DestroyGUIWindow(GUIWindow);
 		return false;
@@ -105,7 +106,8 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 		}
 
 		// Fence, each thread needs their own fence
-		if (!HDirectX::CreateFence(DirectXContext.FrameContext[i].Fence, GUIWindow.DirectXContext->Device))
+		DirectXContext.FrameContext[i].Fence = HDirectX::CreateFence(GUIWindow.DirectXContext->Device);
+		if (!DirectXContext.FrameContext[i].Fence)
 		{
 			HImGui::DestroyGUIWindow(GUIWindow);
 			return false;
@@ -153,7 +155,8 @@ bool HImGui::CreateGUIWindow(HGUIWindow& GUIWindow)
 		return false;
 	}
 	// Copy Fence
-	if (!HDirectX::CreateFence(DirectXContext.CopyFence, GUIWindow.DirectXContext->Device))
+	DirectXContext.CopyFence = HDirectX::CreateFence(GUIWindow.DirectXContext->Device);
+	if (!DirectXContext.CopyFence)
 	{
 		HImGui::DestroyGUIWindow(GUIWindow);
 		return false;
@@ -347,8 +350,8 @@ HFrameContext* HImGui::WaitForNextFrameResources(HGUIWindow& GUIWindow)
 	// if FenceValue == 0, no fence was signaled (i.e. First frame)
 	if (FenceValue != 0)
 	{
-		FrameContext->Fence.Fence->SetEventOnCompletion(FenceValue, FrameContext->Fence.FenceEvent);
-		WaitableObjects[1] = FrameContext->Fence.FenceEvent;
+		FrameContext->Fence->Fence->SetEventOnCompletion(FenceValue, FrameContext->Fence->GetEvent());
+		WaitableObjects[1] = FrameContext->Fence->GetEvent();
 		NumWaitableObjects = 2;
 	}
 
@@ -397,7 +400,7 @@ void CleanupDeviceD3D()
 		{
 			DirectXContext.FrameContext[i].CommandAllocator->Release();
 			DirectXContext.FrameContext[i].CommandAllocator = NULL;
-			DirectXContext.FrameContext[i].Fence.Release();
+			DirectXContext.FrameContext[i].Fence.reset();
 		}
 	}
 

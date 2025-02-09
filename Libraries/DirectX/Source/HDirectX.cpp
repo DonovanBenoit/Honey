@@ -665,20 +665,15 @@ bool HDirectX::CopyDataToResource(
 	return true;
 }
 
-bool HDirectX::CreateFence(HFence& Fence, ID3D12Device* Device)
+std::shared_ptr<HFence> HDirectX::CreateFence(ID3D12Device* Device)
 {
-	if (Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&Fence.Fence)) != S_OK)
+	std::shared_ptr<HFence> Fence = std::make_shared<HFence>();
+	if (Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&Fence->Fence)) != S_OK)
 	{
-		return false;
+		return nullptr;
 	}
 
-	Fence.FenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-	if (Fence.FenceEvent == NULL)
-	{
-		return false;
-	}
-
-	return true;
+	return Fence;
 }
 
 bool HDirectX::CreateSwapChain(
@@ -724,23 +719,23 @@ bool HDirectX::CreateSwapChain(
 	return true;
 }
 
-bool HDirectX::SignalFence(ID3D12CommandQueue* CommandQueue, HFence& Fence, UINT64& FenceValue)
+bool HDirectX::SignalFence(ID3D12CommandQueue* CommandQueue, std::shared_ptr<HFence> Fence, UINT64& FenceValue)
 {
-	FenceValue = Fence.LastSignaledValue + 1;
-	HRESULT Result = CommandQueue->Signal(Fence.Fence, FenceValue);
+	FenceValue = Fence->LastSignaledValue + 1;
+	HRESULT Result = CommandQueue->Signal(Fence->Fence, FenceValue);
 	if (FAILED(Result))
 	{
 		FenceValue = 0;
 		return false;
 	}
-	Fence.LastSignaledValue = FenceValue;
+	Fence->LastSignaledValue = FenceValue;
 
 	return true;
 }
 
-bool HDirectX::CheckFenceComplete(const HFence& Fence, UINT64 FenceValue)
+bool HDirectX::CheckFenceComplete(std::shared_ptr<HFence> Fence, UINT64 FenceValue)
 {
-	if (Fence.Fence->GetCompletedValue() >= FenceValue)
+	if (Fence->Fence->GetCompletedValue() >= FenceValue)
 	{
 		return true;
 	}
@@ -754,13 +749,13 @@ bool HDirectX::CheckFenceComplete(const HFence& Fence, UINT64 FenceValue)
 	return false;
 }
 
-void HDirectX::WaitForFence(const HFence& Fence, UINT64 FenceValue)
+void HDirectX::WaitForFence(std::shared_ptr<HFence> Fence, UINT64 FenceValue)
 {
-	if (Fence.Fence->GetCompletedValue() >= FenceValue)
+	if (Fence->Fence->GetCompletedValue() >= FenceValue)
 	{
 		return;
 	}
 
-	Fence.Fence->SetEventOnCompletion(FenceValue, Fence.FenceEvent);
-	WaitForSingleObject(Fence.FenceEvent, INFINITE);
+	Fence->Fence->SetEventOnCompletion(FenceValue, Fence->GetEvent());
+	WaitForSingleObject(Fence->GetEvent(), INFINITE);
 }

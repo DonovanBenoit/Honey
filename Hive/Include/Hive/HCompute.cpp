@@ -58,8 +58,8 @@ bool HHoney::CreatComputePass(HGUIWindow& GUIWindow, HComputePass& ComputePass)
 	{
 		return false;
 	}
-
-	if (!HDirectX::CreateFence(ComputePass.Fence, GUIWindow.DirectXContext->Device))
+	ComputePass.Fence = HDirectX::CreateFence(GUIWindow.DirectXContext->Device);
+	if (!ComputePass.Fence)
 	{
 		return false;
 	}

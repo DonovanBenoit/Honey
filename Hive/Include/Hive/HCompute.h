@@ -26,7 +26,7 @@ struct HComputePass
 	ID3D12GraphicsCommandList* CommandList = nullptr;
 	ID3D12GraphicsCommandList* UpdateCommandList = nullptr;
 	ID3D12CommandAllocator* UpdateCommandAllocator = nullptr;
-	HFence Fence{};
+	std::shared_ptr<HFence> Fence = nullptr;
 	uint64_t FenceValue = 0;
 
 	std::atomic<bool> TriggerShaderRebuild = false;

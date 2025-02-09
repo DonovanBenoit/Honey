@@ -45,7 +45,7 @@ struct HGUIWindow
 	HDirectXContext* DirectXContext = nullptr;
 
 	// Keep a fence for ourselvs to flush the CommandQueue before modifying the SwapChain
-	HFence Fence{};
+	std::shared_ptr<HFence> Fence{};
 	uint64_t FenceValue = 0;
 	
 	HDescriptorHeap RTV_DescHeap{};

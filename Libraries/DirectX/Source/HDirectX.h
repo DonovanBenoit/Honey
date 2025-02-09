@@ -20,13 +20,30 @@
 #pragma comment(lib, "dxguid.lib")
 #endif
 
+#include <thread>
+
 struct HFence
 {
+private:
+	// Fence Events cannot be shared across multiple threads
+	HANDLE FenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	const std::thread::id ThreaId = std::this_thread::get_id();
+
+public:
 	ID3D12Fence* Fence = nullptr;
-	HANDLE FenceEvent = nullptr;
 	UINT64 LastSignaledValue = 0;
 
-	void Release()
+	HANDLE GetEvent() const
+	{
+		if (ThreaId != std::this_thread::get_id())
+		{
+			assert(false);
+			return nullptr;
+		}
+		return FenceEvent;
+	}
+
+	virtual ~HFence()
 	{
 		if (Fence != nullptr)
 		{
@@ -45,7 +62,7 @@ struct HFrameContext
 {
 	ID3D12CommandAllocator* CommandAllocator = nullptr;
 
-	HFence Fence{};
+	std::shared_ptr<HFence> Fence = nullptr;
 	UINT64 FenceValue = 0;
 };
 
@@ -70,7 +87,7 @@ struct HDirectXContext
 	ID3D12CommandQueue* CopyCommandQueue = nullptr;
 	ID3D12GraphicsCommandList* CopyCommandList = nullptr;
 	ID3D12CommandAllocator* CopyCommandAllocator = nullptr;
-	HFence CopyFence{};
+	std::shared_ptr<HFence> CopyFence{};
 };
 
 struct HResource
@@ -237,16 +254,16 @@ namespace HDirectX
 		void* Data,
 		size_t Size);
 
-	bool CreateFence(HFence& Fence, ID3D12Device* Device);
+	std::shared_ptr<HFence> CreateFence(ID3D12Device* Device);
 	bool CreateSwapChain(
 		HSwapChain& SwapChain,
 		HWND HWND,
 		uint32_t BufferCount,
 		ID3D12CommandQueue* CommandQueue,
 		ID3D12Device* Device);
-	bool SignalFence(ID3D12CommandQueue* CommandQueue, HFence& Fence, UINT64& FenceValue);
-	bool CheckFenceComplete(const HFence& Fence, UINT64 FenceValue);
-	void WaitForFence(const HFence& Fence, UINT64 FenceValue);
+	bool SignalFence(ID3D12CommandQueue* CommandQueue, std::shared_ptr<HFence>, UINT64& FenceValue);
+	bool CheckFenceComplete(std::shared_ptr<HFence> Fence, UINT64 FenceValue);
+	void WaitForFence(std::shared_ptr<HFence> Fence, UINT64 FenceValue);
 
 	template<size_t Count>
 	void ExecuteCommandLists(ID3D12CommandQueue* CommandQueue, const std::array<ID3D12CommandList*, Count> CommandLists)

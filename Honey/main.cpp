@@ -4,6 +4,7 @@
 
 #include <HDirectX.h>
 #include <Hive/HCompute.h>
+#include <Hive/HRender.h>
 #include <Hive/HScene.h>
 #include <Windows.h>
 
